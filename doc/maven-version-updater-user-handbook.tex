@@ -1,0 +1,238 @@
+\documentclass[a4paper,11pt,english,oneside,halfparskip]{scrartcl}
+\usepackage[utf8]{inputenc}
+\usepackage{babel}
+\usepackage{xspace}
+\usepackage{amssymb}
+\usepackage{ifpdf}
+\usepackage{listings}
+\usepackage{mdwlist}
+\usepackage[svgnames]{xcolor}
+\usepackage{hyperref}
+
+\definecolor{listgray}{rgb}{0.88,0.88,0.88} 
+
+\newcommand{\G}{\par\noindent\ensuremath{\blacktriangleright}~}
+\newcommand{\GG}{\par\vspace{-\parskip}\hspace{1.4em}\ensuremath{\triangleright}~}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\MVU}{\textsc{\small{}Maven Version Updater}}
+\newcommand{\VERSION}{0.0.3}
+\newcommand{\pom}{\code{pom.xml}}
+
+%opening
+\title{Maven Version Updater - User Handbook}
+\author{Tobias Roeser}
+
+\makeatletter
+\hypersetup{
+	pdfauthor={\@author}
+	,pdftitle={\@title}
+	%,pdfsubject={\@subjectpdf}
+	%,pdfkeywords={\@keywords}
+% 	,linktocpage
+	,colorlinks=true
+		, linkcolor=DarkBlue, citecolor=Red, urlcolor=MediumBlue
+	,bookmarksnumbered
+}
+\makeatother
+
+
+%%% JavaCode-Listings
+%%% Optional: weitere lst-Optionen, wie z.B. caption und label
+\lstnewenvironment{JavaCode}[1][]{%
+	\lstset{
+		language=Java
+		,basicstyle=\footnotesize
+		,tabsize=2
+		,captionpos=t
+% 		,numbers=left
+% 		,numberblanklines=true, numberstyle=\scriptsize, stepnumber=2
+		,aboveskip={\bigskipamount}, belowskip={\medskipamount}
+% 		,abovecaptionskip={\medskipamount}
+ 		,belowcaptionskip={\medskipamount}
+		,breaklines, breakatwhitespace
+		, #1
+	}
+}{}
+
+%%% JavaCode-Listings
+%%% Optional: weitere lst-Optionen, wie z.B. caption und label
+\lstnewenvironment{Cmdline}[1][]{%
+	\lstset{language=sh
+		,basicstyle=\ttfamily\footnotesize
+		,tabsize=2
+		,captionpos=t
+% 		,numbers=left
+% 		,numberblanklines=true, numberstyle=\scriptsize, stepnumber=2
+		,aboveskip={\bigskipamount}, belowskip={\medskipamount}
+% 		,abovecaptionskip={\medskipamount}
+ 		,belowcaptionskip={\medskipamount}
+		,breaklines, breakatwhitespace
+		,backgroundcolor=\color{listgray} 
+		,frame=tbrl %t: top, r, b, l 
+% 		,frameround=tttt
+		, #1
+	}
+}{}
+
+
+\sloppy
+
+\begin{document}
+\renewcommand{\labelitemi}{$\triangleright$}
+
+\maketitle
+
+\begin{abstract}
+This Handbook describes \MVU{} in version \VERSION{}.
+
+\end{abstract}
+
+\ifpdf\pdfbookmark[1]{Contents}{bm:Contents}\fi
+\tableofcontents
+
+\section{Features}
+
+\subsection{Existing Features}
+
+\begin{itemize}
+ \item operate on many projects and multiprojects, even if they are not part of the same reactor
+ \item extracts easily and fast information about used dependencies and their versions
+ \item bulk change of many or all dependency versions
+ \item bulk align of versions of dependencies to the local available artifacts/projects
+\end{itemize}
+
+\subsection{Future Features}
+
+\begin{itemize}
+ \item trick Maven and use non-transitive build classpathes, e.g. generate \pom's with al lot of exclusions for each dependency
+ \item bulk change dependency artifacts
+ \item more generic search options
+ \item convert local dependencies to system dependencies which point to the local available jars directly to avoid an additional install step, and vice versa
+\end{itemize}
+
+
+\subsection{Motivation (Maven sortcommings)}
+\G Using Maven's -SNAPSHOT qualifiers is inconsistently handled by Maven and not compatible to OSGi Versioning.
+\G Using Maven's release plugin is no option, e.g. because it uses -SNAPSHOT version qualifiers and wants to rule the SCM and Maven remote repository.
+\G Therefore, there are no tools for efficient version management
+\G Maven is slow
+
+\section{Usage}
+
+\subsection{Shell wrapper}
+
+I created an executable jar with dependencies. For convenience, you can create a simple shell script as an executable wrapper around the program:
+
+\begin{Cmdline}[caption={Shell wrapper \code{mvu} (Linux version)}]
+user@dev ~/work $ cat > ~/bin/mvu << "EOF"
+#!/bin/sh
+exec java -jar maven-version-updater-0.0.3-executable.jar $@
+EOF
+user@dev ~/work $ chmod +x ~/bin/mvu
+\end{Cmdline}
+
+\subsection{Windows Command Shell Wrapper}
+
+\begin{Cmdline}[caption={Windows Command Shell wrapper \code{mvn.bat}}]
+:init
+@REM Decide how to startup depending on the version of windows
+
+@REM -- Windows NT with Novell Login
+if "%OS%"=="WINNT" goto WinNTNovell
+
+@REM -- Win98ME
+if NOT "%OS%"=="Windows_NT" goto Win9xArg
+
+:WinNTNovell
+
+@REM -- 4NT shell
+if "%@eval[2+2]" == "4" goto 4NTArgs
+
+@REM -- Regular WinNT shell
+set MAVEN_CMD_LINE_ARGS=%*
+goto endInit
+
+@REM The 4NT Shell from jp software
+:4NTArgs
+set MAVEN_CMD_LINE_ARGS=%$
+goto endInit
+
+:Win9xArg
+@REM Slurp the command line arguments.  This loop allows for an unlimited number
+@REM of agruments (up to the command line limit, anyway).
+set MAVEN_CMD_LINE_ARGS=
+:Win9xApp
+if %1a==a goto endInit
+set MAVEN_CMD_LINE_ARGS=%MAVEN_CMD_LINE_ARGS% %1
+shift
+goto Win9xApp
+
+@REM Reaching here means variables are defined and arguments have been captured
+:endInit
+SET MAVEN_JAVA_EXE="%JAVA_HOME%\bin\java.exe"
+
+%MAVEN_JAVA_EXE% -jar maven-version-updater-0.0.3-executable.jar %MAVEN_CMD_LINE_ARGS%
+
+set MAVEN_JAVA_EXE=
+set MAVEN_CMD_LINE_ARGS=
+\end{Cmdline}
+
+
+\subsection{Built-in help}	
+
+Then you can run it like this:
+
+\begin{Cmdline}[caption={Output of \code{mvu --help}}]
+user@dev ~/work $ mvu --help
+Options:
+--help, -h                        This help
+-d PAR                            Search maven project in directory PAR. If not given at least once, the local directory will be searched.
+--dryrun                          Do not modify any pom.xml.
+--list-deps-and-dependants        List all found dependencies and their dependants
+--detect-local-version-mismatch   Detect project that depedend on other local project but with wrong version number
+--find-artifact PAR               Find the artifact named PAR
+--find-dependency PAR             Find the dependency named PAR
+--search-artifacts PAR            Search for artifact with pattern PAR
+--search-dependencies PAR         Search for dependencies with pattern PAR
+--align-local-dep-version PAR     Sync version of dependants to local project PAR
+--set-dep-version PAR1 PAR2       Set the version for all dependencies PAR1 to version PAR2
+--scan-system-deps                Show all system dependencies
+--scan-local-system-deps          Show all system dependencies that are also available as a project
+--scan-local-non-system-deps      Show all non-system dependencies that are also available as a project
+\end{Cmdline}
+
+\subsection{Workspace}
+
+The default workspace of \MVU{} is the current working directory. You can specify the workspace with the commandline option \code{-d}. It is valid to specify more than one directory by using \code{-d} multiple times. In each of the given workspace directory \MVU{} will take the \pom{} file into account. For multiprojects (\pom's with \code{<module>} tags) all subprojects (modules) will be used.
+
+\subsection{Finding and Searching}
+
+
+\subsection{Scanning for version mismatches}
+
+For larger project workspaces or multproject setups, it is common that a lot of the projects are simultaniously dependencies of other local projects. In most cases, you want to use exactly those latest local available artifacts as dependants. Maintaining the versions of those dependencies in all of your \pom{} files can be a cumbersome task, especially, if you can not or do not want to use Maven's release plugin.
+
+\MVU{} can scan arbitrary sets of projects (including multiprojects) and detect those dependencies that depends on a different version than a possibly local available project provides.
+
+\begin{Cmdline}[caption={Scan for local version mismatches}]
+user@dev ~/work $ mvu --detect-local-version-mismatch
+[INFO] Scanning for projects based on: [.]
+[INFO] Analyzing dependencies...
+\end{Cmdline}
+
+
+\subsection{Fixing version mismatches}
+
+\section{Limitations}
+
+No support for parent pom's.
+
+No support for profiles, esp. dependencies that are declared in profiles.
+
+
+\section{Terms of use (License)}
+
+The decision which license to use for the source code is not made yet. 
+
+You are free to use the released binary jar for your own projects at no charge. Redistribution or selling is not allowed.
+\end{document}
