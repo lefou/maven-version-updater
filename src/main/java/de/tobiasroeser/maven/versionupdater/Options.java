@@ -76,8 +76,8 @@ public class Options {
 	static final Option SCAN_LOCAL_NON_SYS_DEPS = new Option(
 			"scan-local-non-system-deps", null,
 			"Show all non-system dependencies that are also available as a project");
-	static final Option TODO_REPLACE_DEP = new Option(
-			"TODO-replace-dependency", null,
+	static final Option REPLACE_DEP = new Option(
+			"replace-dependency", null,
 			"Replace dependency PAR1 by dependency PAR2", "PAR1", "PAR2");
 	static final Option TODO_MAKE_OPTIONAL_COMPILE_DEPS = new Option(
 			"TODO-make-optional-compile-but-non-optional-runtime-deps-for",

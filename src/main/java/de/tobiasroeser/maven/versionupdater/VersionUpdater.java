@@ -32,7 +32,6 @@ import org.apache.maven.pom.x400.ProjectDocument;
 import org.apache.maven.pom.x400.Dependency.Exclusions;
 import org.apache.maven.pom.x400.Model.Dependencies;
 import org.apache.maven.pom.x400.Model.Modules;
-import org.apache.xmlbeans.XmlCursor;
 import org.apache.xmlbeans.XmlException;
 import org.jackage.util.VariableExpander;
 
@@ -41,7 +40,7 @@ import de.tobiasroeser.maven.shared.Option;
 
 public class VersionUpdater {
 
-	private String pomTemplateFileName = "pom.xml.template";
+	// private String pomTemplateFileName = "pom.xml.template";
 	private String pomFileName = "pom.xml";
 	private final Log log = LogFactory.getLog(VersionUpdater.class);
 
@@ -77,6 +76,9 @@ public class VersionUpdater {
 
 		/** Map(file-to-read -> project-to-update) */
 		public Map<String, String> applyDeps = new HashMap<String, String>();
+
+		/** Map(old-dep -> new-dep) */
+		public Map<String, String> replaceDeps = new HashMap<String, String>();
 	}
 
 	public static void main(String[] args) {
@@ -234,6 +236,15 @@ public class VersionUpdater {
 					params.remove(index);
 					config.applyDeps.put(params.get(index + 1), params
 							.get(index));
+					params.remove(index);
+					params.remove(index);
+				}
+
+				index = Options.REPLACE_DEP.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.replaceDeps.put(params.get(index), params
+							.get(index + 1));
 					params.remove(index);
 					params.remove(index);
 				}
@@ -439,11 +450,44 @@ public class VersionUpdater {
 				}
 			}
 
+			if (config.replaceDeps.size() > 0) {
+				for (Entry<String, String> e : config.replaceDeps.entrySet()) {
+					replaceDependency(e.getKey(), e.getValue(),
+							reactorArtifacts, config.dryrun);
+				}
+			}
+
 			return ok;
 
 		} catch (Exception e) {
 			log.error("Errors occured.", e);
 			return 1;
+		}
+
+	}
+
+	private void replaceDependency(String oldDependencyKey,
+			String newDependencyKey, List<LocalArtifact> reactorArtifacts,
+			boolean dryrun) {
+
+		Map<String, List<Dependency>> depMap = findDirectArtifactDependencies(reactorArtifacts);
+
+		for (List<Dependency> depList : depMap.values()) {
+			for (Dependency dep : depList) {
+				if (dep.getDependencyArtifact().toString().equals(
+						oldDependencyKey)) {
+
+					String[] split = newDependencyKey.split(":", 3);
+					if (split.length != 3) {
+						log.warn("Incorrect dependency key given: "
+								+ newDependencyKey);
+						continue;
+					}
+					Artifact artifact = new Artifact(split[0], split[1],
+							split[2], "jar");
+					modifyDependency(dep, artifact, dryrun);
+				}
+			}
 		}
 
 	}
@@ -743,6 +787,17 @@ public class VersionUpdater {
 
 	private void modifyDependencyVersion(Dependency dependency, String version,
 			boolean dryrun) {
+
+		Artifact versionArtifact = new Artifact(dependency
+				.getDependencyArtifact().getGroup(), dependency
+				.getDependencyArtifact().getArtifact(), version, dependency
+				.getDependencyArtifact().getPackaging());
+
+		modifyDependency(dependency, versionArtifact, dryrun);
+	}
+
+	private void modifyDependency(Dependency dependency,
+			Artifact newDependencyArtifact, boolean dryrun) {
 		if (!dependency.isChangeAllowed()) {
 			log.info("Modifying project " + dependency.getProject()
 					+ " is not allowed because: \""
@@ -751,15 +806,15 @@ public class VersionUpdater {
 			return;
 		}
 
-		if (version != null) {
+		if (newDependencyArtifact != null) {
 			if (dryrun) {
-				log.info("(dryrun) I would change version of dependency: "
-						+ dependency + "\n  - to version: " + version);
+				log.info("(dryrun) I would change dependency: " + dependency
+						+ "\n  - to: " + newDependencyArtifact);
 				return;
 			}
 
-			log.info("About to change version of dependency: " + dependency
-					+ " to version: " + version);
+			log.info("About to change dependency: " + dependency + " to: "
+					+ newDependencyArtifact);
 
 			File pomFile = dependency.getProject().getLocation();
 
@@ -781,8 +836,22 @@ public class VersionUpdater {
 									dependency.getDependencyArtifact()
 											.getVersion())) {
 
-						if (!version.equals(dep.getVersion())) {
-							dep.setVersion(version);
+						if (!newDependencyArtifact.getGroup().equals(
+								dep.getGroupId())) {
+							dep.setGroupId(newDependencyArtifact.getGroup());
+							neededSave = true;
+						}
+
+						if (!newDependencyArtifact.getArtifact().equals(
+								dep.getArtifactId())) {
+							dep.setArtifactId(newDependencyArtifact
+									.getArtifact());
+							neededSave = true;
+						}
+
+						if (!newDependencyArtifact.getVersion().equals(
+								dep.getVersion())) {
+							dep.setVersion(newDependencyArtifact.getVersion());
 							neededSave = true;
 						}
 					}
@@ -888,19 +957,6 @@ public class VersionUpdater {
 			log.error("Could not process file: " + pomFileName, e);
 		}
 
-	}
-
-	private void insertTabsBefore(Model project, String xpath, int tabCount) {
-		XmlCursor prettyPrint = project.newCursor();
-		prettyPrint.selectPath(xpath);
-		for (int i = 0; i < prettyPrint.getSelectionCount(); ++i) {
-			prettyPrint.toSelection(i);
-			prettyPrint.insertChars("\n");
-			for (int j = 0; j < tabCount; ++j) {
-				prettyPrint.insertChars("\t");
-			}
-		}
-		prettyPrint.dispose();
 	}
 
 	private void showDependencies(List<LocalArtifact> localArtifacts,
