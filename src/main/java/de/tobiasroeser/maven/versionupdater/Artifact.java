@@ -23,6 +23,13 @@ public class Artifact {
 		this.version = version;
 		this.packaging = packaging != null ? packaging : "jar";
 	}
+	
+	public Artifact(Artifact copy) {
+		this.group = copy.getGroup();
+		this.artifact = copy.getArtifact();
+		this.version = copy.getVersion();
+		this.packaging = copy.getPackaging();
+	}
 
 	public String getGroup() {
 		return group;
@@ -34,6 +41,10 @@ public class Artifact {
 
 	public String getVersion() {
 		return version;
+	}
+	
+	public String getPackaging() {
+		return packaging;
 	}
 
 	@Override
@@ -85,5 +96,52 @@ public class Artifact {
 			return false;
 		return true;
 	}
+
+
+	public boolean equalsByProjectNameAndVersion(Artifact other) {
+		if (this == other)
+			return true;
+		if (other == null)
+			return false;
+		if (getClass() != other.getClass())
+			return false;
+		if (artifact == null) {
+			if (other.artifact != null)
+				return false;
+		} else if (!artifact.equals(other.artifact))
+			return false;
+		if (group == null) {
+			if (other.group != null)
+				return false;
+		} else if (!group.equals(other.group))
+			return false;
+		if (version == null) {
+			if (other.version != null)
+				return false;
+		} else if (!version.equals(other.version))
+			return false;
+		return true;
+	}
+
+	public boolean equalsByProjectName(Artifact other) {
+		if (this == other)
+			return true;
+		if (other == null)
+			return false;
+		if (getClass() != other.getClass())
+			return false;
+		if (artifact == null) {
+			if (other.artifact != null)
+				return false;
+		} else if (!artifact.equals(other.artifact))
+			return false;
+		if (group == null) {
+			if (other.group != null)
+				return false;
+		} else if (!group.equals(other.group))
+			return false;
+		return true;
+	}
+
 
 }

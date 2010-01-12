@@ -1,20 +1,29 @@
 package de.tobiasroeser.maven.versionupdater;
 
+import java.util.Collections;
+import java.util.List;
+
 public class Dependency {
 
 	private final Artifact dependencyArtifact;
 	private final LocalArtifact project;
 	private final boolean system;
+	private final String scope;
 	private final String classifier;
 	private final String systemPath;
+	private List<String> exclusions;
 
 	public Dependency(Artifact dependencyArtifact, LocalArtifact project,
-			String classifier, boolean system, String systemPath) {
+			String classifier, String scope, String systemPath,
+			List<String> exclusions) {
 		this.dependencyArtifact = dependencyArtifact;
 		this.project = project;
 		this.classifier = classifier;
-		this.system = system;
+		this.scope = scope;
+		this.system = scope.trim().equals("system");
 		this.systemPath = systemPath;
+		this.exclusions = exclusions != null ? exclusions : Collections
+				.<String>emptyList();
 	}
 
 	public Artifact getDependencyArtifact() {
@@ -47,12 +56,20 @@ public class Dependency {
 		return classifier;
 	}
 
+	public String getScope() {
+		return scope;
+	}
+
 	public boolean isSystem() {
 		return system;
 	}
 
 	public String getSystemPath() {
 		return systemPath;
+	}
+
+	public List<String> getExclusions() {
+		return exclusions;
 	}
 
 	@Override
