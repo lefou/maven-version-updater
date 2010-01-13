@@ -76,8 +76,7 @@ public class Options {
 	static final Option SCAN_LOCAL_NON_SYS_DEPS = new Option(
 			"scan-local-non-system-deps", null,
 			"Show all non-system dependencies that are also available as a project");
-	static final Option REPLACE_DEP = new Option(
-			"replace-dependency", null,
+	static final Option REPLACE_DEP = new Option("replace-dependency", null,
 			"Replace dependency PAR1 by dependency PAR2", "PAR1", "PAR2");
 	static final Option TODO_MAKE_OPTIONAL_COMPILE_DEPS = new Option(
 			"TODO-make-optional-compile-but-non-optional-runtime-deps-for",
@@ -92,6 +91,16 @@ public class Options {
 	static final Option APPLY_DEPS = new Option("apply-project-deps", null,
 			"Update the project PAR1 with the dependencies from file PAR2",
 			"PAR1", "PAR2");
+
+	static final Option GENERATE_EXCLUDES = new Option("generate-excludes",
+			null,
+			"TODO-Generate dependency excludes in project PAR1 for dependency PAR2",
+			"PAR1", "PAR2");
+
+	static final Option GENERATE_EXCLUDES_ALL_DEPS = new Option(
+			"TODO-generate-all-excludes", null,
+			"Generate dependency excludes in project PAR for all dependencies",
+			"PAR");
 
 	static List<Option> allOptions() {
 

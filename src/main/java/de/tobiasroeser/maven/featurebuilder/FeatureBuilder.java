@@ -11,9 +11,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
+
+import javax.xml.namespace.QName;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -25,7 +26,6 @@ import org.apache.xmlbeans.XmlObject;
 
 import de.tobiasroeser.maven.shared.MavenXmlSupport;
 import de.tobiasroeser.maven.shared.Option;
-import de.tobiasroeser.maven.versionupdater.Dependency;
 import de.tobiasroeser.maven.versionupdater.LocalArtifact;
 
 public class FeatureBuilder {
@@ -168,7 +168,8 @@ public class FeatureBuilder {
 			}
 
 			if (config.updateFeatureXml != null) {
-				updateFeatureXml(config.updateFeatureXml, bundles);
+				updateFeatureXml(config.updateFeatureXml, config.symbolicName,
+						config.version, bundles);
 			}
 
 			if (config.copyJarsAsBundlesTo != null && scannedBundles != null) {
@@ -364,7 +365,8 @@ public class FeatureBuilder {
 		cursor.toNextToken();
 	}
 
-	private void updateFeatureXml(String fileName, List<Bundle> bundles) {
+	private void updateFeatureXml(String fileName, String symbolicName,
+			String version, List<Bundle> bundles) {
 
 		File file = new File(fileName);
 		if (!file.exists() || !file.isFile()) {
@@ -376,14 +378,15 @@ public class FeatureBuilder {
 			XmlObject xml = XmlObject.Factory.parse(file);
 			XmlCursor pC = xml.newCursor();
 
-			// existing entries
+			// remove existing plugin entries
 			pC.selectPath("$this/feature/plugin");
 			for (int i = 0; i < pC.getSelectionCount(); ++i) {
 				pC.toSelection(i);
 				pC.removeXml();
 			}
-
 			pC.dispose();
+
+			// add new plugin entries
 			pC = xml.newCursor();
 			pC.selectPath("$this/feature");
 			pC.toSelection(0);
@@ -404,6 +407,38 @@ public class FeatureBuilder {
 						+ " plugins of the given feature were not updated.");
 			}
 			tester.dispose();
+
+			// Update feature id if necessary
+			if (symbolicName != null) {
+				XmlCursor idCursor = xml.newCursor();
+				idCursor.selectPath("$this/feature");
+				if (idCursor.getSelectionCount() == 0) {
+					log.warn("Could not found feature entry.");
+				}
+				idCursor.toSelection(0);
+				String curId = idCursor.getAttributeText(new QName("id"));
+				if (!symbolicName.equals(curId)) {
+					idCursor.setAttributeText(new QName("id"), symbolicName);
+				}
+				idCursor.dispose();
+			}
+
+			// Update feature version if necessary
+			if (version != null) {
+				XmlCursor versionCursor = xml.newCursor();
+				versionCursor.selectPath("$this/feature");
+				if (versionCursor.getSelectionCount() == 0) {
+					log.warn("Could not found feature entry.");
+				}
+				versionCursor.toSelection(0);
+				String curVersion = versionCursor.getAttributeText(new QName(
+						"version"));
+				if (!version.equals(curVersion)) {
+					versionCursor.setAttributeText(new QName("version"),
+							version);
+				}
+				versionCursor.dispose();
+			}
 
 			log.info("Modifying feature file: " + file.getAbsolutePath());
 			xml.save(file);
@@ -438,8 +473,9 @@ public class FeatureBuilder {
 
 			log.debug("Analyzing Maven project: " + localArtifact);
 
-			Map<String, List<Dependency>> depsAndDependants = MavenXmlSupport.instance
-					.readDirectDependencyFromProject(project, file);
+			// Map<String, List<Dependency>> depsAndDependants =
+			// MavenXmlSupport.instance
+			// .readDirectDependencyFromProject(project, file);
 
 			// FIXME: populate bundles from dependencies
 

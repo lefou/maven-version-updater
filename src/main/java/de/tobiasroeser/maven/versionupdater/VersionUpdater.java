@@ -79,6 +79,9 @@ public class VersionUpdater {
 
 		/** Map(old-dep -> new-dep) */
 		public Map<String, String> replaceDeps = new HashMap<String, String>();
+
+		/** Map(project -> dep-with-needs-excludes */
+		public Map<String, String> generateExcludes = new HashMap<String, String>();
 	}
 
 	public static void main(String[] args) {
@@ -246,6 +249,21 @@ public class VersionUpdater {
 					config.replaceDeps.put(params.get(index), params
 							.get(index + 1));
 					params.remove(index);
+					params.remove(index);
+				}
+
+				index = Options.GENERATE_EXCLUDES.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.generateExcludes.put(params.get(index), params
+							.get(index + 1));
+					params.remove(index);
+					params.remove(index);
+				}
+				index = Options.GENERATE_EXCLUDES_ALL_DEPS.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.generateExcludes.put(params.get(index), null);
 					params.remove(index);
 				}
 
@@ -457,6 +475,14 @@ public class VersionUpdater {
 				}
 			}
 
+			// if (config.generateExcludes.size() > 0) {
+			// for (Entry<String, String> e : config.generateExcludes
+			// .entrySet()) {
+			// generateExcludes(e.getKey(), e.getValue(),
+			// reactorArtifacts, config.dryrun);
+			// }
+			// }
+
 			return ok;
 
 		} catch (Exception e) {
@@ -465,6 +491,31 @@ public class VersionUpdater {
 		}
 
 	}
+
+//	private void generateExcludes(String project, String dependency,
+//			List<LocalArtifact> reactorArtifacts, boolean dryrun) {
+//
+//		LocalArtifact candidate = null;
+//		
+//		for (LocalArtifact artifact : reactorArtifacts) {
+//			if(artifact.toString().equals(key)) {
+//				candidate = artifact;
+//			}
+//		}
+//
+//		if(candidate == null) {
+//			log.error("Could not found project: "+key);
+//			return;
+//		}
+//		
+//		Map<String, List<Dependency>> depMap = findDirectArtifactDependencies(Arrays.asList(candidate));
+//		for(List<Dependency> depList:depMap.values()) {
+//			for(Dependency dep : depList) {
+//				
+//			}
+//		}
+//		
+//	}
 
 	private void replaceDependency(String oldDependencyKey,
 			String newDependencyKey, List<LocalArtifact> reactorArtifacts,
