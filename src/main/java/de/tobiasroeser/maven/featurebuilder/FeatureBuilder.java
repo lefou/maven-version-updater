@@ -7,10 +7,12 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
@@ -25,7 +27,6 @@ import org.apache.xmlbeans.XmlException;
 import org.apache.xmlbeans.XmlObject;
 
 import de.tobiasroeser.maven.shared.MavenXmlSupport;
-import de.tobiasroeser.maven.shared.Option;
 import de.tobiasroeser.maven.versionupdater.LocalArtifact;
 
 public class FeatureBuilder {
@@ -62,85 +63,14 @@ public class FeatureBuilder {
 		public String scanJarsAtDir;
 		public String updateFeatureXml;
 		public String copyJarsAsBundlesTo;
-	}
-
-	private int parseCmdline(Config config, List<String> params0) {
-		List<String> params = new ArrayList<String>(params0);
-		int index = -1;
-
-		index = Options.HELP.scanPosition(params);
-		if (index != -1) {
-			params.remove(index);
-			System.out
-					.println(Option.formatOptions(Options.allOptions(), null));
-			return -1;
-		}
-
-		index = Options.USE_POM.scanPosition(params);
-		if (index != -1) {
-			params.remove(index);
-			config.pomFile = params.get(index);
-			params.remove(index);
-		}
-
-		index = Options.CREATE_FEATURE_XML.scanPosition(params);
-		if (index != -1) {
-			params.remove(index);
-			config.createFeatureXml = params.get(index);
-			params.remove(index);
-		}
-
-		index = Options.UPDATE_FEATURE_XML.scanPosition(params);
-		if (index != -1) {
-			params.remove(index);
-			config.updateFeatureXml = params.get(index);
-			params.remove(index);
-		}
-
-		index = Options.SCAN_JARS.scanPosition(params);
-		if (index != -1) {
-			params.remove(index);
-			config.scanJarsAtDir = params.get(index);
-			params.remove(index);
-		}
-
-		index = Options.FEATURE_ID.scanPosition(params);
-		if (index != -1) {
-			params.remove(index);
-			config.symbolicName = params.get(index);
-			params.remove(index);
-		}
-
-		index = Options.FEATURE_VERSION.scanPosition(params);
-		if (index != -1) {
-			params.remove(index);
-			config.version = params.get(index);
-			params.remove(index);
-		}
-
-		index = Options.COPY_JARS_AS_BUNDLES.scanPosition(params);
-		if (index != -1) {
-			if (config.scanJarsAtDir == null) {
-				log.error("Option " + Options.COPY_JARS_AS_BUNDLES
-						+ " can only be used in conjunction with "
-						+ Options.SCAN_JARS);
-			}
-			params.remove(index);
-			config.copyJarsAsBundlesTo = params.get(index);
-			params.remove(index);
-		}
-
-		if (params.size() > 0) {
-			throw new Error("Unsupported parameters: " + params);
-		}
-
-		return 0;
+		/** Map(feature-id,new-version) */
+		public final Map<String, String> updateIncludedFeatureVersion = new LinkedHashMap<String, String>();
 	}
 
 	private int run(List<String> params) {
 
 		Config config = new Config();
-		int ok = parseCmdline(config, params);
+		int ok = Options.parseCmdline(config, params);
 
 		return ok != 0 ? ok : run(config);
 	}
@@ -169,7 +99,8 @@ public class FeatureBuilder {
 
 			if (config.updateFeatureXml != null) {
 				updateFeatureXml(config.updateFeatureXml, config.symbolicName,
-						config.version, bundles);
+						config.version, config.updateIncludedFeatureVersion,
+						bundles);
 			}
 
 			if (config.copyJarsAsBundlesTo != null && scannedBundles != null) {
@@ -195,6 +126,9 @@ public class FeatureBuilder {
 		} else {
 			dir.mkdirs();
 		}
+
+		log.info("Copying " + bundles.size() + " bundles into: "
+				+ dir.getAbsolutePath());
 
 		for (Bundle bundle : bundles) {
 			File target = new File(dir, bundle.getSymbolicName() + "-"
@@ -280,7 +214,10 @@ public class FeatureBuilder {
 				}
 			}
 		}
+		log.info("Found " + bundles.size() + " bundles in scanned directory: "
+				+ file.getAbsolutePath());
 
+		Collections.sort(bundles);
 		return bundles;
 	}
 
@@ -366,7 +303,8 @@ public class FeatureBuilder {
 	}
 
 	private void updateFeatureXml(String fileName, String symbolicName,
-			String version, List<Bundle> bundles) {
+			String version, Map<String, String> includedFeatureVersions,
+			List<Bundle> bundles) {
 
 		File file = new File(fileName);
 		if (!file.exists() || !file.isFile()) {
@@ -414,11 +352,13 @@ public class FeatureBuilder {
 				idCursor.selectPath("$this/feature");
 				if (idCursor.getSelectionCount() == 0) {
 					log.warn("Could not found feature entry.");
-				}
-				idCursor.toSelection(0);
-				String curId = idCursor.getAttributeText(new QName("id"));
-				if (!symbolicName.equals(curId)) {
-					idCursor.setAttributeText(new QName("id"), symbolicName);
+				} else {
+					idCursor.toSelection(0);
+					String curId = idCursor.getAttributeText(new QName("id"));
+					if (!symbolicName.equals(curId)) {
+						idCursor
+								.setAttributeText(new QName("id"), symbolicName);
+					}
 				}
 				idCursor.dispose();
 			}
@@ -429,15 +369,38 @@ public class FeatureBuilder {
 				versionCursor.selectPath("$this/feature");
 				if (versionCursor.getSelectionCount() == 0) {
 					log.warn("Could not found feature entry.");
-				}
-				versionCursor.toSelection(0);
-				String curVersion = versionCursor.getAttributeText(new QName(
-						"version"));
-				if (!version.equals(curVersion)) {
-					versionCursor.setAttributeText(new QName("version"),
-							version);
+				} else {
+					versionCursor.toSelection(0);
+					String curVersion = versionCursor
+							.getAttributeText(new QName("version"));
+					if (!version.equals(curVersion)) {
+						versionCursor.setAttributeText(new QName("version"),
+								version);
+					}
 				}
 				versionCursor.dispose();
+			}
+
+			// Update versions of included features
+			if (includedFeatureVersions.size() > 0) {
+				XmlCursor includesCursor = xml.newCursor();
+				includesCursor.selectPath("$this/feature/includes");
+				if (includesCursor.getSelectionCount() < includedFeatureVersions
+						.size()) {
+					log
+							.warn("Could not found some of the requested included features.");
+				} else {
+					for (int i = 0; i < includedFeatureVersions.size(); ++i) {
+						includesCursor.toSelection(i);
+						String id = includesCursor.getAttributeText(new QName(
+								"id"));
+						if (includedFeatureVersions.containsKey(id)) {
+							includesCursor.setAttributeText(
+									new QName("version"),
+									includedFeatureVersions.get(id));
+						}
+					}
+				}
 			}
 
 			log.info("Modifying feature file: " + file.getAbsolutePath());

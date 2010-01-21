@@ -44,44 +44,44 @@ public class VersionUpdater {
 	private String pomFileName = "pom.xml";
 	private final Log log = LogFactory.getLog(VersionUpdater.class);
 
-	private class Config {
-		private boolean dryrun = false;
+	private static class Config {
+		public boolean dryrun = false;
 
-		boolean listDepsAndDependants;
-		boolean detectLocalVersionMismatch;
-		private String persistArtifactListTo;
+		public boolean listDepsAndDependants;
+		public boolean detectLocalVersionMismatch;
+		public String persistArtifactListTo;
 
-		private String readArtifactListFrom;
+		public String readArtifactListFrom;
 
-		private boolean scanSystemDeps;
-		private boolean scanLocalDeps;
-		private boolean scanLocalNonSystemDeps;
-		private boolean scanLocalSystemDeps;
+		public boolean scanSystemDeps;
+		public boolean scanLocalDeps;
+		public boolean scanLocalNonSystemDeps;
+		public boolean scanLocalSystemDeps;
 
-		private boolean listArtifacts;
+		public boolean listArtifacts;
 
 		/** List(directory) */
-		final List<String> dirs = new LinkedList<String>();
+		public final List<String> dirs = new LinkedList<String>();
 		/** Map(artifact-key -> find-exact) */
-		final Map<String, Boolean> artifactsToFindExact = new LinkedHashMap<String, Boolean>();
+		public final Map<String, Boolean> artifactsToFindExact = new LinkedHashMap<String, Boolean>();
 		/** Map(dependency-key -> find-exact) */
-		final Map<String, Boolean> dependenciesToFindExact = new LinkedHashMap<String, Boolean>();
+		public final Map<String, Boolean> dependenciesToFindExact = new LinkedHashMap<String, Boolean>();
 		/** List(artifact-key) */
-		final List<String> alignLocalDepVersion = new LinkedList<String>();
+		public final List<String> alignLocalDepVersion = new LinkedList<String>();
 		/** Map(dependency-key -> version) */
-		final Map<String, String> setDepVersions = new LinkedHashMap<String, String>();
+		public final Map<String, String> setDepVersions = new LinkedHashMap<String, String>();
 
 		/** Map(file-to-write -> project) */
-		public Map<String, String> persistDeps = new HashMap<String, String>();
+		public final Map<String, String> persistDeps = new HashMap<String, String>();
 
 		/** Map(file-to-read -> project-to-update) */
-		public Map<String, String> applyDeps = new HashMap<String, String>();
+		public final Map<String, String> applyDeps = new HashMap<String, String>();
 
 		/** Map(old-dep -> new-dep) */
-		public Map<String, String> replaceDeps = new HashMap<String, String>();
+		public final Map<String, String> replaceDeps = new HashMap<String, String>();
 
 		/** Map(project -> dep-with-needs-excludes */
-		public Map<String, String> generateExcludes = new HashMap<String, String>();
+		public final Map<String, String> generateExcludes = new HashMap<String, String>();
 	}
 
 	public static void main(String[] args) {
@@ -492,30 +492,31 @@ public class VersionUpdater {
 
 	}
 
-//	private void generateExcludes(String project, String dependency,
-//			List<LocalArtifact> reactorArtifacts, boolean dryrun) {
-//
-//		LocalArtifact candidate = null;
-//		
-//		for (LocalArtifact artifact : reactorArtifacts) {
-//			if(artifact.toString().equals(key)) {
-//				candidate = artifact;
-//			}
-//		}
-//
-//		if(candidate == null) {
-//			log.error("Could not found project: "+key);
-//			return;
-//		}
-//		
-//		Map<String, List<Dependency>> depMap = findDirectArtifactDependencies(Arrays.asList(candidate));
-//		for(List<Dependency> depList:depMap.values()) {
-//			for(Dependency dep : depList) {
-//				
-//			}
-//		}
-//		
-//	}
+	// private void generateExcludes(String project, String dependency,
+	// List<LocalArtifact> reactorArtifacts, boolean dryrun) {
+	//
+	// LocalArtifact candidate = null;
+	//		
+	// for (LocalArtifact artifact : reactorArtifacts) {
+	// if(artifact.toString().equals(key)) {
+	// candidate = artifact;
+	// }
+	// }
+	//
+	// if(candidate == null) {
+	// log.error("Could not found project: "+key);
+	// return;
+	// }
+	//		
+	// Map<String, List<Dependency>> depMap =
+	// findDirectArtifactDependencies(Arrays.asList(candidate));
+	// for(List<Dependency> depList:depMap.values()) {
+	// for(Dependency dep : depList) {
+	//				
+	// }
+	// }
+	//		
+	// }
 
 	private void replaceDependency(String oldDependencyKey,
 			String newDependencyKey, List<LocalArtifact> reactorArtifacts,
@@ -605,6 +606,12 @@ public class VersionUpdater {
 					continue;
 				}
 				String[] part1 = split[0].split(":", 3);
+				if (part1.length < 3) {
+					log
+							.warn("Incorrect line found! Could not parse Maven artifact coordiantes. Line: "
+									+ line);
+					continue;
+				}
 				String groupId = part1[0];
 				String artifactId = part1[1];
 				String version = part1[2];

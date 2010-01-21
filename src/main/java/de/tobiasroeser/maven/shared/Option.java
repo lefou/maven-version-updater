@@ -23,7 +23,7 @@ public class Option {
 	}
 
 	/**
-	 * Scan the string for occurences of this option and return the position of
+	 * Scan the string for occurrences of this option and return the position of
 	 * the option, if found.
 	 * 
 	 * @param params
@@ -56,6 +56,14 @@ public class Option {
 
 	public String[] getArgs() {
 		return args;
+	}
+
+	public int getArgCount() {
+		if (args != null) {
+			return args.length;
+		} else {
+			return 0;
+		}
 	}
 
 	public String formatOptionString() {

@@ -2,7 +2,7 @@ package de.tobiasroeser.maven.featurebuilder;
 
 import java.io.File;
 
-public class Bundle {
+public class Bundle implements Comparable<Bundle> {
 
 	private final String symbolicName;
 	private final String version;
@@ -69,4 +69,13 @@ public class Bundle {
 		return true;
 	}
 
+	public int compareTo(Bundle o) {
+		int diff = getSymbolicName().compareTo(o.getSymbolicName());
+		if(diff == 0) {
+			// FIXME: poor mans version sorter :-(
+			return getVersion().compareTo(o.getVersion()); 
+		}
+		return diff;
+	}
+	
 }
