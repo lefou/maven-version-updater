@@ -92,7 +92,8 @@ public class Options {
 			"Update the project PAR1 with the dependencies from file PAR2",
 			"PAR1", "PAR2");
 
-	static final Option GENERATE_EXCLUDES = new Option("generate-excludes",
+	static final Option GENERATE_EXCLUDES = new Option(
+			"generate-excludes",
 			null,
 			"TODO-Generate dependency excludes in project PAR1 for dependency PAR2",
 			"PAR1", "PAR2");
@@ -107,7 +108,9 @@ public class Options {
 		LinkedList<Option> options = new LinkedList<Option>();
 		try {
 			for (Field field : Options.class.getDeclaredFields()) {
-				options.add((Option) field.get(null));
+				if (field.getType().equals(Option.class)) {
+					options.add((Option) field.get(null));
+				}
 			}
 		} catch (IllegalArgumentException e) {
 			throw new Error("Could not retrieve all options", e);

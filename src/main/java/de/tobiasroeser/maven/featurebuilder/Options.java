@@ -44,13 +44,25 @@ public class Options {
 			"update-included-feature-version", null,
 			"Update the version of an included feature PAR1 to version PAR2",
 			"PAR1", "PAR");
+	public static final Option UPDATE_INCLUDED_FEATURE = new Option(
+			"update-included-feature-version",
+			null,
+			"Update the version of an included feature PAR. The version of feature PAR will be autodetected but required the use of "
+					+ SCAN_JARS
+					+ ". Feature jars need the MANIFEST.MF entries 'FeatureBuilder-FeatureId' and 'FeatureBuilder-FeatureVersion'",
+			"PAR");
+
+	public static final Option JAR_FEATURE = new Option("jar-feature", null,
+			"Create a feature jar to directory PAR", "PAR");
 
 	static List<Option> allOptions() {
 
 		LinkedList<Option> options = new LinkedList<Option>();
 		try {
 			for (Field field : Options.class.getDeclaredFields()) {
-				options.add((Option) field.get(null));
+				if (field.getType().equals(Option.class)) {
+					options.add((Option) field.get(null));
+				}
 			}
 		} catch (IllegalArgumentException e) {
 			throw new Error("Could not retrieve all options", e);
@@ -133,12 +145,25 @@ public class Options {
 			params.remove(index);
 		}
 
-		index = Options.UPDATE_INCLUDED_FEATURE_VERSION.scanPosition(params);
+		index = Options.JAR_FEATURE.scanPosition(params);
 		if (index != -1) {
+			params.remove(index);
+			config.jarFeatureTo = params.get(index);
+			params.remove(index);
+		}
+
+		while ((index = Options.UPDATE_INCLUDED_FEATURE_VERSION
+				.scanPosition(params)) != -1) {
 			params.remove(index);
 			config.updateIncludedFeatureVersion.put(params.get(index), params
 					.get(index + 1));
 			params.remove(index);
+			params.remove(index);
+		}
+
+		while ((index = Options.UPDATE_INCLUDED_FEATURE.scanPosition(params)) != -1) {
+			params.remove(index);
+			config.updateIncludedFeature.add(params.get(index));
 			params.remove(index);
 		}
 
@@ -149,7 +174,8 @@ public class Options {
 		}
 
 		if (params.size() > 0) {
-			LogFactory.getLog(Options.class).error("Unsupported parameters: " + params);
+			LogFactory.getLog(Options.class).error(
+					"Unsupported parameters: " + params);
 			return EXIT_INVALID_CMDLINE;
 		}
 
