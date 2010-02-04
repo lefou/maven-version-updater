@@ -36,6 +36,10 @@ public class Options {
 			"Apply the artifact versions read from artifact list PAR to local projects.",
 			"PAR");
 
+	static final Option UPDATE_ARITFACT_VERSION = new Option(
+			"update-artifact-version", null,
+			"Update the artifact with the given version in PAR", "PAR");
+
 	static final Option LIST_ARTIFACTS = new Option("list-local-artifacts",
 			null, "List all found artifacts");
 

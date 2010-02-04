@@ -82,6 +82,8 @@ public class VersionUpdater {
 
 		/** Map(project -> dep-with-needs-excludes */
 		public final Map<String, String> generateExcludes = new HashMap<String, String>();
+
+		public List<String> updateArtifactVersion = new LinkedList<String>();
 	}
 
 	public static void main(String[] args) {
@@ -264,6 +266,13 @@ public class VersionUpdater {
 				if (index != -1) {
 					params.remove(index);
 					config.generateExcludes.put(params.get(index), null);
+					params.remove(index);
+				}
+
+				index = Options.UPDATE_ARITFACT_VERSION.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.updateArtifactVersion.add(params.get(index));
 					params.remove(index);
 				}
 
@@ -475,6 +484,12 @@ public class VersionUpdater {
 				}
 			}
 
+			if (config.updateArtifactVersion.size() > 0) {
+				for (String artifact : config.updateArtifactVersion) {
+					updateProjectVersion(reactorArtifacts, artifact, config.dryrun);
+				}
+			}
+
 			// if (config.generateExcludes.size() > 0) {
 			// for (Entry<String, String> e : config.generateExcludes
 			// .entrySet()) {
@@ -490,6 +505,54 @@ public class VersionUpdater {
 			return 1;
 		}
 
+	}
+
+	private void updateProjectVersion(List<LocalArtifact> reactorArtifacts,
+			String artifact, boolean dryrun) {
+
+		String[] split = artifact.split(":", 3);
+		if (split.length != 3) {
+			log.error("Could not parse artifact key: " + artifact);
+			return;
+		}
+
+		LocalArtifact candidate = null;
+
+		for (LocalArtifact localArtifact : reactorArtifacts) {
+			if (localArtifact.getGroup().equals(split[0])
+					&& localArtifact.getArtifact().equals(split[1])) {
+				candidate = localArtifact;
+				break;
+			}
+		}
+
+		if (candidate == null) {
+			log.error("Could to found project: " + split[0] + ":" + split[1]);
+			return;
+		}
+		
+		if(dryrun) {
+			log.info("I would change project version: "+artifact);
+			return;
+		}
+		
+		log.info("Updating version for project: "+candidate+ " to "+split[2]);
+		
+		ProjectDocument o;
+		try {
+			o = ProjectDocument.Factory.parse(candidate.getLocation(), MavenXmlSupport.instance
+					.createXmlOptions());
+
+			Model project = o.getProject();
+			project.setVersion(split[2]);
+			
+			o.save(candidate.getLocation());
+			
+		} catch (XmlException e) {
+			log.error("Could not process pom file: "+candidate.getLocation(), e);
+		} catch (IOException e) {
+			log.error("Could not process pom file: "+candidate.getLocation(), e);
+		}
 	}
 
 	// private void generateExcludes(String project, String dependency,
@@ -983,28 +1046,6 @@ public class VersionUpdater {
 				}
 
 			}
-
-			// insertTabsBefore(project, "./dependencies", 1);
-			// insertTabsBefore(project, "./dependencies/dependency", 2);
-			// insertTabsBefore(project, "./dependencies/dependency/groupId",
-			// 3);
-			// insertTabsBefore(project, "./dependencies/dependency/artifactId",
-			// 3);
-			// insertTabsBefore(project, "./dependencies/dependency/version",
-			// 3);
-			// insertTabsBefore(project, "./dependencies/dependency/classifier",
-			// 3);
-			// insertTabsBefore(project, "./dependencies/dependency/scope", 3);
-			// insertTabsBefore(project, "./dependencies/dependency/systemPath",
-			// 3);
-			// insertTabsBefore(project, "./dependencies/dependency/exclusions",
-			// 3);
-			// insertTabsBefore(project,
-			// "./dependencies/dependency/exclusions/exclusion", 4);
-			// insertTabsBefore(project,
-			// "./dependencies/dependency/exclusions/exclusion/groupId", 5);
-			// insertTabsBefore(project,
-			// "./dependencies/dependency/exclusions/exclusion/artifactId", 5);
 
 			log.info("Modifying file: " + pomFile);
 			o.save(pomFile);
