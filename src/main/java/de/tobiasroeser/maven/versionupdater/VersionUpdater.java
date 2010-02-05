@@ -36,55 +36,12 @@ import org.apache.xmlbeans.XmlException;
 import org.jackage.util.VariableExpander;
 
 import de.tobiasroeser.maven.shared.MavenXmlSupport;
-import de.tobiasroeser.maven.shared.Option;
 
 public class VersionUpdater {
 
 	// private String pomTemplateFileName = "pom.xml.template";
 	private String pomFileName = "pom.xml";
 	private final Log log = LogFactory.getLog(VersionUpdater.class);
-
-	private static class Config {
-		public boolean dryrun = false;
-
-		public boolean listDepsAndDependants;
-		public boolean detectLocalVersionMismatch;
-		public String persistArtifactListTo;
-
-		public String readArtifactListFrom;
-
-		public boolean scanSystemDeps;
-		public boolean scanLocalDeps;
-		public boolean scanLocalNonSystemDeps;
-		public boolean scanLocalSystemDeps;
-
-		public boolean listArtifacts;
-
-		/** List(directory) */
-		public final List<String> dirs = new LinkedList<String>();
-		/** Map(artifact-key -> find-exact) */
-		public final Map<String, Boolean> artifactsToFindExact = new LinkedHashMap<String, Boolean>();
-		/** Map(dependency-key -> find-exact) */
-		public final Map<String, Boolean> dependenciesToFindExact = new LinkedHashMap<String, Boolean>();
-		/** List(artifact-key) */
-		public final List<String> alignLocalDepVersion = new LinkedList<String>();
-		/** Map(dependency-key -> version) */
-		public final Map<String, String> setDepVersions = new LinkedHashMap<String, String>();
-
-		/** Map(file-to-write -> project) */
-		public final Map<String, String> persistDeps = new HashMap<String, String>();
-
-		/** Map(file-to-read -> project-to-update) */
-		public final Map<String, String> applyDeps = new HashMap<String, String>();
-
-		/** Map(old-dep -> new-dep) */
-		public final Map<String, String> replaceDeps = new HashMap<String, String>();
-
-		/** Map(project -> dep-with-needs-excludes */
-		public final Map<String, String> generateExcludes = new HashMap<String, String>();
-
-		public List<String> updateArtifactVersion = new LinkedList<String>();
-	}
 
 	public static void main(String[] args) {
 		try {
@@ -97,265 +54,46 @@ public class VersionUpdater {
 		}
 	}
 
-	private int parseCmdline(Config config, List<String> args) {
-		ArrayList<String> params = new ArrayList<String>(args);
-		int lastSize = params.size();
-		try {
-			while (lastSize > 0) {
-				int index;
-
-				index = Options.HELP.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-
-					String formatOptions = Option.formatOptions(Options
-							.allOptions(), null);
-					System.out.println(formatOptions);
-					return -1;
-				}
-
-				index = Options.DIR.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.dirs.add(params.get(index));
-					params.remove(index);
-				}
-
-				index = Options.DRYRUN.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.dryrun = true;
-				}
-
-				index = Options.LIST_ARTIFACTS.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.listArtifacts = true;
-				}
-
-				index = Options.LIST_DEPS.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.listDepsAndDependants = true;
-				}
-
-				index = Options.DETECT_MISMATCH.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.detectLocalVersionMismatch = true;
-				}
-
-				index = Options.FIND_ARTIFACT.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.artifactsToFindExact.put(params.get(index), true);
-					params.remove(index);
-				}
-
-				index = Options.FIND_DEP.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.dependenciesToFindExact.put(params.get(index), true);
-					params.remove(index);
-				}
-
-				index = Options.SEARCH_ARTIFACT.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.artifactsToFindExact.put(params.get(index), false);
-					params.remove(index);
-				}
-
-				index = Options.SEARCH_DEPS.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.dependenciesToFindExact
-							.put(params.get(index), false);
-					params.remove(index);
-				}
-
-				index = Options.ALLIGN.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.alignLocalDepVersion.add(params.get(index));
-					params.remove(index);
-				}
-
-				index = Options.SET_DEP_VER.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.setDepVersions.put(params.get(index), params
-							.get(index + 1));
-					params.remove(index);
-					params.remove(index);
-				}
-
-				index = Options.SCAN_SYS_DEPS.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.scanSystemDeps = true;
-				}
-
-				index = Options.SCAN_LOCAL_DEPS.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.scanLocalDeps = true;
-				}
-
-				index = Options.SCAN_LOCAL_SYS_DEPS.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.scanLocalSystemDeps = true;
-				}
-
-				index = Options.SCAN_LOCAL_NON_SYS_DEPS.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.scanLocalNonSystemDeps = true;
-				}
-
-				index = Options.PERSIST_ARTIFACTS.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.persistArtifactListTo = params.get(index);
-					params.remove(index);
-				}
-				index = Options.CHECK_ARTIFACT_LIST.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.readArtifactListFrom = params.get(index);
-					params.remove(index);
-				}
-
-				index = Options.EXTRACT_DEPS.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.persistDeps.put(params.get(index + 1), params
-							.get(index));
-					params.remove(index);
-					params.remove(index);
-				}
-
-				index = Options.APPLY_DEPS.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.applyDeps.put(params.get(index + 1), params
-							.get(index));
-					params.remove(index);
-					params.remove(index);
-				}
-
-				index = Options.REPLACE_DEP.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.replaceDeps.put(params.get(index), params
-							.get(index + 1));
-					params.remove(index);
-					params.remove(index);
-				}
-
-				index = Options.GENERATE_EXCLUDES.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.generateExcludes.put(params.get(index), params
-							.get(index + 1));
-					params.remove(index);
-					params.remove(index);
-				}
-				index = Options.GENERATE_EXCLUDES_ALL_DEPS.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.generateExcludes.put(params.get(index), null);
-					params.remove(index);
-				}
-
-				index = Options.UPDATE_ARITFACT_VERSION.scanPosition(params);
-				if (index != -1) {
-					params.remove(index);
-					config.updateArtifactVersion.add(params.get(index));
-					params.remove(index);
-				}
-
-				if (params.size() == lastSize) {
-					throw new Error("Unsupported parameters: " + params);
-				}
-				lastSize = params.size();
-			}
-
-		} catch (IndexOutOfBoundsException e) {
-			throw new Error("Missing parameter.", e);
-		}
-
-		if (config.dirs.size() == 0) {
-			config.dirs.add(".");
-		}
-
-		return 0;
-	}
-
-	private void persistArtifactListTo(List<LocalArtifact> reactorArtifacts,
-			String outputTo, boolean dryrun) {
-
-		File file = new File(outputTo);
-		if (dryrun) {
-			log.info("I would write artifacts to " + file.getAbsolutePath());
-			return;
-		}
-
-		try {
-			log.info("Writing artifacts to " + file.getAbsolutePath());
-
-			if (file.exists()) {
-				log.error("File '" + file.getAbsolutePath()
-						+ "' already exists. Skipping.");
-				return;
-			}
-
-			PrintWriter printWriter = new PrintWriter(file);
-
-			ArrayList<LocalArtifact> sortedArtifacts = new ArrayList<LocalArtifact>(
-					reactorArtifacts);
-			Collections.sort(sortedArtifacts, new Comparator<LocalArtifact>() {
-				public int compare(LocalArtifact o1, LocalArtifact o2) {
-					int comp = o1.getGroup().compareTo(o2.getGroup());
-					if (comp == 0) {
-						comp = o1.getArtifact().compareTo(o2.getArtifact());
-					}
-					if (comp == 0) {
-						comp = o1.getVersion().compareTo(o2.getVersion());
-					}
-					return comp;
-				}
-			});
-
-			for (LocalArtifact artifact : reactorArtifacts) {
-				String line = artifact.getGroup() + ":"
-						+ artifact.getArtifact() + ":" + artifact.getVersion();
-				printWriter.println(line);
-			}
-
-			printWriter.close();
-
-		} catch (FileNotFoundException e) {
-			throw new Error("Cannot write file " + outputTo, e);
-		}
-
+	public static class Config {
+		public boolean dryrun = false;
+		public boolean listDepsAndDependants;
+		public boolean detectLocalVersionMismatch;
+		public String persistArtifactListTo;
+		public String readArtifactListFrom;
+		public boolean scanSystemDeps;
+		public boolean scanLocalDeps;
+		public boolean scanLocalNonSystemDeps;
+		public boolean scanLocalSystemDeps;
+		public boolean listArtifacts;
+		/** List(directory) */
+		public final List<String> dirs = new LinkedList<String>();
+		/** Map(artifact-key -> find-exact) */
+		public final Map<String, Boolean> artifactsToFindExact = new LinkedHashMap<String, Boolean>();
+		/** Map(dependency-key -> find-exact) */
+		public final Map<String, Boolean> dependenciesToFindExact = new LinkedHashMap<String, Boolean>();
+		/** List(artifact-key) */
+		public final List<String> alignLocalDepVersion = new LinkedList<String>();
+		/** Map(dependency-key-with-version) */
+		public final List<String> setDepVersions = new LinkedList<String>();
+		/** Map(file-to-write -> project) */
+		public final Map<String, String> persistDeps = new HashMap<String, String>();
+		/** Map(file-to-read -> project-to-update) */
+		public final Map<String, String> applyDeps = new HashMap<String, String>();
+		/** Map(old-dep -> new-dep) */
+		public final Map<String, String> replaceDeps = new HashMap<String, String>();
+		/** Map(project -> dep-with-needs-excludes */
+		public final Map<String, String> generateExcludes = new HashMap<String, String>();
+		public List<String> updateArtifactVersion = new LinkedList<String>();
 	}
 
 	public int run(List<String> args) {
+		Config config = new Config();
+		int ok = Options.parseCmdline(config, args);
+		return ok == 0 ? run(config) : ok == Options.EXIT_HELP ? 0 : ok;
+	}
 
+	public int run(Config config) {
 		try {
-
-			Config config = new Config();
-
-			int ok = parseCmdline(config, args);
-			if (ok == -1 /* help */) {
-				return 0;
-			}
-			if (ok != 0) {
-				return ok;
-			}
-
 			log.info("Scanning for projects based on: " + config.dirs);
 			List<LocalArtifact> reactorArtifacts = scanReactorArtifacts(config.dirs
 					.toArray(new String[config.dirs.size()]));
@@ -427,12 +165,19 @@ public class VersionUpdater {
 
 			if (config.setDepVersions.size() > 0) {
 				Map<String, List<Dependency>> deps = findDirectArtifactDependencies(reactorArtifacts);
-				for (Entry<String, String> dv : config.setDepVersions
-						.entrySet()) {
-					List<Dependency> depsToChange = deps.get(dv.getKey());
-					for (Dependency dependency : depsToChange) {
-						modifyDependencyVersion(dependency, dv.getValue(),
-								config.dryrun);
+				for (String key : config.setDepVersions) {
+					String[] split = key.split(":", 3);
+					if (split.length != 3) {
+						throw new IllegalAccessException(
+								"Illegal dependency key given: " + key);
+					}
+					List<Dependency> depsToChange = deps.get(split[0] + ":"
+							+ split[1]);
+					if (depsToChange != null) {
+						for (Dependency dependency : depsToChange) {
+							modifyDependencyVersion(dependency, split[2],
+									config.dryrun);
+						}
 					}
 				}
 			}
@@ -486,7 +231,8 @@ public class VersionUpdater {
 
 			if (config.updateArtifactVersion.size() > 0) {
 				for (String artifact : config.updateArtifactVersion) {
-					updateProjectVersion(reactorArtifacts, artifact, config.dryrun);
+					updateProjectVersion(reactorArtifacts, artifact,
+							config.dryrun);
 				}
 			}
 
@@ -498,11 +244,58 @@ public class VersionUpdater {
 			// }
 			// }
 
-			return ok;
-
+			return 0;
 		} catch (Exception e) {
 			log.error("Errors occured.", e);
 			return 1;
+		}
+	}
+
+	private void persistArtifactListTo(List<LocalArtifact> reactorArtifacts,
+			String outputTo, boolean dryrun) {
+
+		File file = new File(outputTo);
+		if (dryrun) {
+			log.info("I would write artifacts to " + file.getAbsolutePath());
+			return;
+		}
+
+		try {
+			log.info("Writing artifacts to " + file.getAbsolutePath());
+
+			if (file.exists()) {
+				log.error("File '" + file.getAbsolutePath()
+						+ "' already exists. Skipping.");
+				return;
+			}
+
+			PrintWriter printWriter = new PrintWriter(file);
+
+			ArrayList<LocalArtifact> sortedArtifacts = new ArrayList<LocalArtifact>(
+					reactorArtifacts);
+			Collections.sort(sortedArtifacts, new Comparator<LocalArtifact>() {
+				public int compare(LocalArtifact o1, LocalArtifact o2) {
+					int comp = o1.getGroup().compareTo(o2.getGroup());
+					if (comp == 0) {
+						comp = o1.getArtifact().compareTo(o2.getArtifact());
+					}
+					if (comp == 0) {
+						comp = o1.getVersion().compareTo(o2.getVersion());
+					}
+					return comp;
+				}
+			});
+
+			for (LocalArtifact artifact : reactorArtifacts) {
+				String line = artifact.getGroup() + ":"
+						+ artifact.getArtifact() + ":" + artifact.getVersion();
+				printWriter.println(line);
+			}
+
+			printWriter.close();
+
+		} catch (FileNotFoundException e) {
+			throw new Error("Cannot write file " + outputTo, e);
 		}
 
 	}
@@ -530,28 +323,31 @@ public class VersionUpdater {
 			log.error("Could to found project: " + split[0] + ":" + split[1]);
 			return;
 		}
-		
-		if(dryrun) {
-			log.info("I would change project version: "+artifact);
+
+		if (dryrun) {
+			log.info("I would change project version: " + artifact);
 			return;
 		}
-		
-		log.info("Updating version for project: "+candidate+ " to "+split[2]);
-		
+
+		log.info("Updating version for project: " + candidate + " to "
+				+ split[2]);
+
 		ProjectDocument o;
 		try {
-			o = ProjectDocument.Factory.parse(candidate.getLocation(), MavenXmlSupport.instance
-					.createXmlOptions());
+			o = ProjectDocument.Factory.parse(candidate.getLocation(),
+					MavenXmlSupport.instance.createXmlOptions());
 
 			Model project = o.getProject();
 			project.setVersion(split[2]);
-			
+
 			o.save(candidate.getLocation());
-			
+
 		} catch (XmlException e) {
-			log.error("Could not process pom file: "+candidate.getLocation(), e);
+			log.error("Could not process pom file: " + candidate.getLocation(),
+					e);
 		} catch (IOException e) {
-			log.error("Could not process pom file: "+candidate.getLocation(), e);
+			log.error("Could not process pom file: " + candidate.getLocation(),
+					e);
 		}
 	}
 

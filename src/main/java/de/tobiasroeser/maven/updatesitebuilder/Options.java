@@ -50,7 +50,7 @@ public class Options {
 		if (index != -1) {
 			params.remove(index);
 			System.out
-					.println(Option.formatOptions(Options.allOptions(), null));
+					.println(Option.formatOptions(Options.allOptions(), null, true));
 			return EXIT_HELP;
 		}
 

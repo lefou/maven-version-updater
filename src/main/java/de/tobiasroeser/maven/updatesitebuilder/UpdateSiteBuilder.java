@@ -40,7 +40,7 @@ public class UpdateSiteBuilder {
 	private int run(List<String> params) {
 		final Config config = new Config();
 		final int ok = Options.parseCmdline(config, params);
-		return ok != 0 ? ok : run(config);
+		return ok == 0 ? run(config) : ok == Options.EXIT_HELP ? 0 : ok;
 	}
 
 	public int run(Config config) {

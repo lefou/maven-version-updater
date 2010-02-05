@@ -1,9 +1,10 @@
 package de.tobiasroeser.maven.shared;
 
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
-public class Option {
+public class Option implements Comparable<Option> {
 
 	private final String longOption;
 	private final String shortOption;
@@ -92,10 +93,27 @@ public class Option {
 		}
 	}
 
-	public static String formatOptions(List<Option> options, String prefix) {
+	public int compareTo(Option o) {
+		String left = getLongOption() != null ? getLongOption()
+				: getShortOption();
+		String right = o.getLongOption() != null ? o.getLongOption() : o
+				.getShortOption();
+
+		int comp = left.toLowerCase().compareTo(right.toLowerCase());
+		return comp != 0 ? comp : left.compareTo(right);
+	}
+
+	public static String formatOptions(List<Option> options, String prefix,
+			boolean sorted) {
 		LinkedList<String[]> optionsToFormat = new LinkedList<String[]>();
 
-		for (Option option : options) {
+		List<Option> sortedOptions = sorted ? new LinkedList<Option>(options)
+				: options;
+		if (sorted) {
+			Collections.sort(sortedOptions);
+		}
+
+		for (Option option : sortedOptions) {
 			optionsToFormat.add(new String[] { option.formatOptionString(),
 					option.getDescription() });
 		}
@@ -126,6 +144,7 @@ public class Option {
 
 	@Override
 	public String toString() {
-		return getLongOption() != null ? getLongOption() : getShortOption();
+		return getLongOption() != null ? "--" + getLongOption() : "-"
+				+ getShortOption();
 	}
 }

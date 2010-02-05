@@ -84,8 +84,8 @@ public class Options {
 		index = Options.HELP.scanPosition(params);
 		if (index != -1) {
 			params.remove(index);
-			System.out
-					.println(Option.formatOptions(Options.allOptions(), null));
+			System.out.println(Option.formatOptions(Options.allOptions(), null,
+					true));
 			return EXIT_HELP;
 		}
 

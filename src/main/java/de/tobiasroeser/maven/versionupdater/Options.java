@@ -4,10 +4,12 @@
 package de.tobiasroeser.maven.versionupdater;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
 import de.tobiasroeser.maven.shared.Option;
+import de.tobiasroeser.maven.versionupdater.VersionUpdater.Config;
 
 public class Options {
 
@@ -38,7 +40,23 @@ public class Options {
 
 	static final Option UPDATE_ARITFACT_VERSION = new Option(
 			"update-artifact-version", null,
-			"Update the artifact with the given version in PAR", "PAR");
+			"Update the version of the matching artifact to artifact PAR (supports "
+					+ DRYRUN + ")", "PAR");
+
+	static final Option SET_DEP_VER = new Option(
+			"set-dep-version",
+			null,
+			"Updates the versions of all matching dependencies to dependencies PAR (supports "
+					+ DRYRUN + ")", "PAR");
+
+	static final Option UPDATE_ARTIFACT_AND_DEP_VERSION = new Option(
+			"update-artifact-and-dep-version",
+			null,
+			"Upadte the artifact and all dependencies to that artifact to version PAR (same as "
+					+ UPDATE_ARITFACT_VERSION
+					+ " and "
+					+ SET_DEP_VER
+					+ " used together)", "PAR");
 
 	static final Option LIST_ARTIFACTS = new Option("list-local-artifacts",
 			null, "List all found artifacts");
@@ -63,12 +81,6 @@ public class Options {
 			null,
 			"Sync version of dependants to local project PAR (supports --dryrun)",
 			"PAR");
-
-	static final Option SET_DEP_VER = new Option(
-			"set-dep-version",
-			null,
-			"Set the version for all dependencies PAR1 to version PAR2 (supports --dryrun)",
-			" PAR1", "PAR2");
 
 	static final Option SCAN_SYS_DEPS = new Option("scan-system-deps", null,
 			"Show all system dependencies");
@@ -107,6 +119,9 @@ public class Options {
 			"Generate dependency excludes in project PAR for all dependencies",
 			"PAR");
 
+	public static final int EXIT_HELP = -1;
+	public static final int EXIT_OK = 0;
+
 	static List<Option> allOptions() {
 
 		LinkedList<Option> options = new LinkedList<Option>();
@@ -123,5 +138,208 @@ public class Options {
 		}
 
 		return options;
+	}
+
+	public static int parseCmdline(Config config, List<String> args) {
+		ArrayList<String> params = new ArrayList<String>(args);
+		int lastSize = params.size();
+		try {
+			while (lastSize > 0) {
+				int index = -1;
+
+				index = Options.HELP.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+
+					String formatOptions = Option.formatOptions(Options
+							.allOptions(), null, true);
+					System.out.println(formatOptions);
+					return EXIT_HELP;
+				}
+
+				index = Options.DIR.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.dirs.add(params.get(index));
+					params.remove(index);
+				}
+
+				index = Options.DRYRUN.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.dryrun = true;
+				}
+
+				index = Options.LIST_ARTIFACTS.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.listArtifacts = true;
+				}
+
+				index = Options.LIST_DEPS.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.listDepsAndDependants = true;
+				}
+
+				index = Options.DETECT_MISMATCH.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.detectLocalVersionMismatch = true;
+				}
+
+				index = Options.FIND_ARTIFACT.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.artifactsToFindExact.put(params.get(index), true);
+					params.remove(index);
+				}
+
+				index = Options.FIND_DEP.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.dependenciesToFindExact.put(params.get(index), true);
+					params.remove(index);
+				}
+
+				index = Options.SEARCH_ARTIFACT.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.artifactsToFindExact.put(params.get(index), false);
+					params.remove(index);
+				}
+
+				index = Options.SEARCH_DEPS.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.dependenciesToFindExact
+							.put(params.get(index), false);
+					params.remove(index);
+				}
+
+				index = Options.ALLIGN.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.alignLocalDepVersion.add(params.get(index));
+					params.remove(index);
+				}
+
+				index = Options.SET_DEP_VER.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.setDepVersions.add(params.get(index));
+					params.remove(index);
+				}
+
+				index = Options.SCAN_SYS_DEPS.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.scanSystemDeps = true;
+				}
+
+				index = Options.SCAN_LOCAL_DEPS.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.scanLocalDeps = true;
+				}
+
+				index = Options.SCAN_LOCAL_SYS_DEPS.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.scanLocalSystemDeps = true;
+				}
+
+				index = Options.SCAN_LOCAL_NON_SYS_DEPS.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.scanLocalNonSystemDeps = true;
+				}
+
+				index = Options.PERSIST_ARTIFACTS.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.persistArtifactListTo = params.get(index);
+					params.remove(index);
+				}
+				index = Options.CHECK_ARTIFACT_LIST.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.readArtifactListFrom = params.get(index);
+					params.remove(index);
+				}
+
+				index = Options.EXTRACT_DEPS.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.persistDeps.put(params.get(index + 1), params
+							.get(index));
+					params.remove(index);
+					params.remove(index);
+				}
+
+				index = Options.APPLY_DEPS.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.applyDeps.put(params.get(index + 1), params
+							.get(index));
+					params.remove(index);
+					params.remove(index);
+				}
+
+				index = Options.REPLACE_DEP.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.replaceDeps.put(params.get(index), params
+							.get(index + 1));
+					params.remove(index);
+					params.remove(index);
+				}
+
+				index = Options.GENERATE_EXCLUDES.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.generateExcludes.put(params.get(index), params
+							.get(index + 1));
+					params.remove(index);
+					params.remove(index);
+				}
+				index = Options.GENERATE_EXCLUDES_ALL_DEPS.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.generateExcludes.put(params.get(index), null);
+					params.remove(index);
+				}
+
+				index = Options.UPDATE_ARITFACT_VERSION.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.updateArtifactVersion.add(params.get(index));
+					params.remove(index);
+				}
+
+				index = Options.UPDATE_ARTIFACT_AND_DEP_VERSION
+						.scanPosition(params);
+				if (index != -1) {
+					params.remove(index);
+					config.updateArtifactVersion.add(params.get(index));
+					config.setDepVersions.add(params.get(index));
+					params.remove(index);
+				}
+
+				if (params.size() == lastSize) {
+					throw new Error("Unsupported parameters: " + params);
+				}
+				lastSize = params.size();
+			}
+
+		} catch (IndexOutOfBoundsException e) {
+			throw new Error("Missing parameter.", e);
+		}
+
+		if (config.dirs.size() == 0) {
+			config.dirs.add(".");
+		}
+
+		return EXIT_OK;
 	}
 }
