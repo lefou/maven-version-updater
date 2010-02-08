@@ -14,6 +14,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.xmlbeans.XmlCursor;
 import org.apache.xmlbeans.XmlException;
 import org.apache.xmlbeans.XmlObject;
+import org.apache.xmlbeans.XmlOptions;
 
 public class UpdateSiteBuilder {
 
@@ -84,13 +85,19 @@ public class UpdateSiteBuilder {
 						"version"));
 				if (featureVersions.containsKey(featureId)) {
 					if (!featureVer.equals(featureVersions.get(featureId))) {
-						log.info("Updating feature: " + featureId + "-"
+						log.info("Updating feature version: " + featureId + "-"
 								+ featureVersions.get(featureId));
 						cursor.setAttributeText(new QName("version"),
 								featureVersions.get(featureId));
+						cursor.setAttributeText(new QName("url"), "features/"
+								+ featureId + "_"
+								+ featureVersions.get(featureId) + ".jar");
 					}
 				}
 			}
+
+			xml.save(file, new XmlOptions().setSavePrettyPrint()
+					.setSavePrettyPrintIndent(2));
 
 		} catch (XmlException e) {
 			log.error("Errors while processing xml file: "
@@ -103,5 +110,4 @@ public class UpdateSiteBuilder {
 
 		return true;
 	}
-
 }

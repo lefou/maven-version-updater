@@ -255,7 +255,11 @@ public class FeatureBuilder {
 		}
 	}
 
-	private Map<String, String> scanFeatureVersionsAtDir(String scanJarsAtDir) {
+	/**
+	 * @param scanJarsAtDir
+	 * @return A Map(featureId -> featureVersion)
+	 */
+	public Map<String, String> scanFeatureVersionsAtDir(String scanJarsAtDir) {
 		Map<String, String> featureVersions = new LinkedHashMap<String, String>();
 
 		File file = new File(scanJarsAtDir);
@@ -294,7 +298,7 @@ public class FeatureBuilder {
 		return featureVersions;
 	}
 
-	private List<Bundle> scanBundlesAtDir(String scanJarsAtDir) {
+	public List<Bundle> scanBundlesAtDir(String scanJarsAtDir) {
 		File file = new File(scanJarsAtDir);
 
 		LinkedList<Bundle> bundles = new LinkedList<Bundle>();
