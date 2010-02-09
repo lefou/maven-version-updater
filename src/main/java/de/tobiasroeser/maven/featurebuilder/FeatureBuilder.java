@@ -213,7 +213,7 @@ public class FeatureBuilder {
 				+ dir.getAbsolutePath());
 
 		for (Bundle bundle : bundles) {
-			File target = new File(dir, bundle.getSymbolicName() + "-"
+			File target = new File(dir, bundle.getSymbolicName() + "_"
 					+ bundle.getVersion() + ".jar");
 
 			FileChannel in = null;
