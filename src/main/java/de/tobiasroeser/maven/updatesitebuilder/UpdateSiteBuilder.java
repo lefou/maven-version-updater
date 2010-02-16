@@ -33,6 +33,7 @@ public class UpdateSiteBuilder {
 
 	public static class Config {
 		public String siteXmlFile = "site.xml";
+		public String siteXmlTemplate;
 		/** Map(project-key -> feature-id) */
 		public final Map<String, String> projectFeatureMapping = new LinkedHashMap<String, String>();
 		public final Map<String, String> featureVersions = new LinkedHashMap<String, String>();
@@ -48,7 +49,8 @@ public class UpdateSiteBuilder {
 		try {
 
 			if (config.siteXmlFile != null && config.featureVersions.size() > 0) {
-				updateSiteXml(config.siteXmlFile, config.featureVersions);
+				updateSiteXml(config.siteXmlFile, config.siteXmlTemplate,
+						config.featureVersions);
 			}
 
 		} catch (Exception e) {
@@ -58,13 +60,27 @@ public class UpdateSiteBuilder {
 		return 0;
 	}
 
-	public boolean updateSiteXml(String siteXmlFile,
+	public boolean updateSiteXml(String siteXmlFile, String siteXmlTemplate,
 			Map<String, String> featureVersions) {
+
+		File tFile = null;
+		if (siteXmlTemplate != null) {
+			tFile = new File(siteXmlTemplate);
+			if (!tFile.exists() || !tFile.isFile()) {
+				log.error("Cannot find template site file: "
+						+ tFile.getAbsolutePath());
+				return false;
+			}
+		}
+
 		File file = new File(siteXmlFile);
-		if (!file.exists() || !file.isFile()) {
-			log.error("Cannot update not existing site file: "
-					+ file.getAbsolutePath());
-			return false;
+		if (tFile == null) {
+			if (!file.exists() || !file.isFile()) {
+				log.error("Cannot update not existing site file: "
+						+ file.getAbsolutePath());
+				return false;
+			}
+			tFile = file;
 		}
 
 		if (featureVersions.size() == 0) {
@@ -96,7 +112,7 @@ public class UpdateSiteBuilder {
 				}
 			}
 
-			xml.save(file, new XmlOptions().setSavePrettyPrint()
+			xml.save(tFile, new XmlOptions().setSavePrettyPrint()
 					.setSavePrettyPrintIndent(2));
 
 		} catch (XmlException e) {

@@ -22,6 +22,13 @@ public class Options {
 	public static final Option FEATURE_VERSIONS = new Option("feature-version",
 			null, "Update/bump feature id PAR1 to version PAR2", "PAR1", "PAR2");
 
+	public static final Option SITE_XML = new Option("site-xml", null,
+			"The site.xml file to generate/update", "PAR");
+
+	public static final Option TEMPLATE_XML = new Option("template-xml", null,
+			"The feature.xml template PAR file (optional for "
+					+ Options.SITE_XML + ")", "PAR");
+
 	static List<Option> allOptions() {
 		LinkedList<Option> options = new LinkedList<Option>();
 		try {
@@ -72,6 +79,20 @@ public class Options {
 			config.featureVersions
 					.put(params.get(index), params.get(index + 1));
 			params.remove(index);
+			params.remove(index);
+		}
+
+		index = Options.SITE_XML.scanPosition(params);
+		if (index != -1) {
+			params.remove(index);
+			config.siteXmlFile = params.get(index);
+			params.remove(index);
+		}
+
+		index = Options.TEMPLATE_XML.scanPosition(params);
+		if (index != -1) {
+			params.remove(index);
+			config.siteXmlTemplate = params.get(index);
 			params.remove(index);
 		}
 

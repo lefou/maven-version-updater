@@ -3,4 +3,4 @@ Changelog of maven-version-updater
 maven-version-updater 0.0.10
 - mvu: Trim some XML elements in parsed pom.xml's before processing (e.g. groupId, artifactId, version, ...)
 - FeatureBuilder: Update/create feature.xml based on a template file
-
+- UpdateSiteBuilder: Update/create xite.xml based on a template file

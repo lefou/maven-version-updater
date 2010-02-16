@@ -33,9 +33,11 @@ public class Options {
 
 	public static final Option CREATE_FEATURE_XML = new Option(
 			"create-feature-xml", null, "Create a feature xml file PAR", "PAR");
+
 	public static final Option TEMPLATE_XML = new Option("template-xml", null,
 			"The feature.xml template PAR file (optional for "
 					+ Options.UPDATE_FEATURE_XML + ")", "PAR");
+	
 	public static final Option UPDATE_FEATURE_XML = new Option(
 			"update-feature-xml", null, "Update a feature xml file PAR", "PAR");
 
