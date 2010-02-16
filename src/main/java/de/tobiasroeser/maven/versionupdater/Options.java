@@ -81,7 +81,6 @@ public class Options {
 			null,
 			"Sync version of dependants to local project PAR (supports --dryrun)",
 			"PAR");
-
 	static final Option SCAN_SYS_DEPS = new Option("scan-system-deps", null,
 			"Show all system dependencies");
 	static final Option SCAN_LOCAL_DEPS = new Option("scan-local-deps", null,
@@ -126,6 +125,11 @@ public class Options {
 
 		LinkedList<Option> options = new LinkedList<Option>();
 		try {
+			List<Option> annotatedOptions = Option
+					.scanCmdOpions(VersionUpdater.Config.class);
+			if (annotatedOptions != null && annotatedOptions.size() > 0) {
+				options.addAll(options);
+			}
 			for (Field field : Options.class.getDeclaredFields()) {
 				if (field.getType().equals(Option.class)) {
 					options.add((Option) field.get(null));

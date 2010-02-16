@@ -25,6 +25,11 @@ public class Options {
 	static List<Option> allOptions() {
 		LinkedList<Option> options = new LinkedList<Option>();
 		try {
+			List<Option> annotatedOptions = Option
+					.scanCmdOpions(UpdateSiteBuilder.Config.class);
+			if (annotatedOptions != null && annotatedOptions.size() > 0) {
+				options.addAll(options);
+			}
 			for (Field field : Options.class.getDeclaredFields()) {
 				if (field.getType().equals(Option.class)) {
 					options.add((Option) field.get(null));
@@ -49,8 +54,8 @@ public class Options {
 		index = Options.HELP.scanPosition(params);
 		if (index != -1) {
 			params.remove(index);
-			System.out
-					.println(Option.formatOptions(Options.allOptions(), null, true));
+			System.out.println(Option.formatOptions(Options.allOptions(), null,
+					true));
 			return EXIT_HELP;
 		}
 

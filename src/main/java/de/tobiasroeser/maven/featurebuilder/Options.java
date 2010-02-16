@@ -33,6 +33,9 @@ public class Options {
 
 	public static final Option CREATE_FEATURE_XML = new Option(
 			"create-feature-xml", null, "Create a feature xml file PAR", "PAR");
+	public static final Option TEMPLATE_XML = new Option("template-xml", null,
+			"The feature.xml template PAR file (optional for "
+					+ Options.UPDATE_FEATURE_XML + ")", "PAR");
 	public static final Option UPDATE_FEATURE_XML = new Option(
 			"update-feature-xml", null, "Update a feature xml file PAR", "PAR");
 
@@ -59,6 +62,11 @@ public class Options {
 
 		LinkedList<Option> options = new LinkedList<Option>();
 		try {
+			List<Option> annotatedOptions = Option
+					.scanCmdOpions(FeatureBuilder.Config.class);
+			if (annotatedOptions != null && annotatedOptions.size() > 0) {
+				options.addAll(options);
+			}
 			for (Field field : Options.class.getDeclaredFields()) {
 				if (field.getType().equals(Option.class)) {
 					options.add((Option) field.get(null));
@@ -107,6 +115,12 @@ public class Options {
 		if (index != -1) {
 			params.remove(index);
 			config.updateFeatureXml = params.get(index);
+			params.remove(index);
+		}
+		index = Options.TEMPLATE_XML.scanPosition(params);
+		if (index != -1) {
+			params.remove(index);
+			config.updateFeatureXmlTemplate = params.get(index);
 			params.remove(index);
 		}
 
@@ -170,6 +184,15 @@ public class Options {
 		if (config.createFeatureXml != null && config.updateFeatureXml != null) {
 			LogFactory.getLog(Options.class).error(
 					"Cannot update and create a feature,xml at the same time.");
+			return EXIT_INVALID_CMDLINE;
+		}
+
+		final List<String> validate = config.validate();
+		if (validate.size() > 0) {
+			for (String error : validate) {
+				LogFactory.getLog(Options.class).error(
+						"Invalid commandline: " + error);
+			}
 			return EXIT_INVALID_CMDLINE;
 		}
 

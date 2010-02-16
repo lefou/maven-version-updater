@@ -68,12 +68,33 @@ public class FeatureBuilder {
 		public String version;
 		public String scanJarsAtDir;
 		public String updateFeatureXml;
+		public String updateFeatureXmlTemplate;
 		public String copyJarsAsBundlesTo;
 		/** Map(feature-id,new-version) */
 		public final Map<String, String> updateIncludedFeatureVersion = new LinkedHashMap<String, String>();
 		/** List(feature-id) */
 		public final List<String> updateIncludedFeature = new LinkedList<String>();
 		public String jarFeatureTo;
+
+		public List<String> validate() {
+			List<String> errors = new LinkedList<String>();
+			int count = 0;
+			if (createFeatureXml != null)
+				++count;
+			if (updateFeatureXml != null)
+				++count;
+
+			if (count == 0) {
+				errors
+						.add("No feature.xml creation/modification method given.");
+			}
+			if (count > 1) {
+				errors
+						.add("More that one feature.xml creation/modification methods given.");
+			}
+
+			return errors;
+		}
 	}
 
 	private int run(List<String> params) {
@@ -130,10 +151,11 @@ public class FeatureBuilder {
 			}
 
 			if (config.updateFeatureXml != null) {
-				updateFeatureXml(config.updateFeatureXml, config.symbolicName,
-						config.version, config.updateIncludedFeatureVersion,
-						bundles);
+				updateFeatureXml(config.updateFeatureXml, config.updateFeatureXmlTemplate,
+						config.symbolicName, config.version,
+						config.updateIncludedFeatureVersion, bundles);
 			}
+
 
 			if (config.copyJarsAsBundlesTo != null && scannedBundles != null) {
 				copyJarsAsBundles(scannedBundles, config.copyJarsAsBundlesTo);
@@ -429,18 +451,30 @@ public class FeatureBuilder {
 		cursor.toNextToken();
 	}
 
-	private void updateFeatureXml(String fileName, String symbolicName,
-			String version, Map<String, String> includedFeatureVersions,
-			List<Bundle> bundles) {
+	private void updateFeatureXml(String fileName, String templateFile,
+			String symbolicName, String version,
+			Map<String, String> includedFeatureVersions, List<Bundle> bundles) {
+
+		File tFile = null;
+		if (templateFile != null) {
+			tFile = new File(templateFile);
+			if (!tFile.exists() || !tFile.isFile()) {
+				log.error("Cannot read template feature file: "
+						+ tFile.getAbsolutePath());
+			}
+		}
 
 		File file = new File(fileName);
-		if (!file.exists() || !file.isFile()) {
-			log.error("Cannot update not existing feature file: "
-					+ file.getAbsolutePath());
+		if (tFile == null) {
+			if (!file.exists() || !file.isFile()) {
+				log.error("Cannot update not existing feature file: "
+						+ file.getAbsolutePath());
+			}
+			tFile = file;
 		}
 
 		try {
-			XmlObject xml = XmlObject.Factory.parse(file);
+			XmlObject xml = XmlObject.Factory.parse(tFile);
 			XmlCursor pC = xml.newCursor();
 
 			// remove existing plugin entries
@@ -535,10 +569,10 @@ public class FeatureBuilder {
 					.setSavePrettyPrintIndent(2));
 
 		} catch (XmlException e) {
-			log.error("Could not modufy feature description: "
+			log.error("Could not modify feature description: "
 					+ file.getAbsolutePath(), e);
 		} catch (IOException e) {
-			log.error("Could not modufy feature description: "
+			log.error("Could not modify feature description: "
 					+ file.getAbsolutePath(), e);
 		}
 	}

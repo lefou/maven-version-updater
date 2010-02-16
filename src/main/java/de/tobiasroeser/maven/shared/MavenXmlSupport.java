@@ -68,8 +68,8 @@ public class MavenXmlSupport {
 			version = version != null ? version : parent.getVersion();
 		}
 
-		return new LocalArtifact(vars.expand(groupId), vars.expand(artifactId),
-				vars.expand(version), packaging, pomFile);
+		return new LocalArtifact(vars.expand(groupId.trim()), vars.expand(artifactId.trim()),
+				vars.expand(version.trim()), packaging != null ? packaging.trim() : null, pomFile);
 	}
 
 	
@@ -90,15 +90,24 @@ public class MavenXmlSupport {
 			for (org.apache.maven.pom.x400.Dependency dep : dependencies
 					.getDependencyArray()) {
 
-				String groupId = dep.getGroupId();
-				String artifactId = dep.getArtifactId();
-				String version = dep.getVersion();
+				String groupId = dep.getGroupId().trim();
+				String artifactId = dep.getArtifactId().trim();
+				String version = dep.getVersion().trim();
 				String classifier = dep.getClassifier();
+				if(classifier != null) {
+					classifier = classifier.trim();
+				}
 				String scope = dep.getScope();
 				if (scope == null) {
 					scope = "compile";
 				}
+				else {
+					scope = scope.trim();
+				}
 				String systemPath = dep.getSystemPath();
+				if(systemPath != null) {
+					systemPath = systemPath.trim();
+				}
 
 				List<String> problems = new LinkedList<String>();
 

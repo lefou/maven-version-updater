@@ -1,5 +1,8 @@
 package de.tobiasroeser.maven.shared;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.text.MessageFormat;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -146,5 +149,40 @@ public class Option implements Comparable<Option> {
 	public String toString() {
 		return getLongOption() != null ? "--" + getLongOption() : "-"
 				+ getShortOption();
+	}
+
+	private static Option convertToOption(final String fieldOrMethodName,
+			String longName, String shortName, String description, String[] args) {
+		if (longName.equals("") && shortName.equals("")) {
+			longName = fieldOrMethodName;
+		}
+		if (!description.equals("") && args.length > 0) {
+			description = MessageFormat.format(description, (Object[]) args);
+		}
+		// TODO: replace other options in description string
+		return new Option(longName.equals("") ? null : longName, shortName
+				.equals("") ? null : shortName, description, args);
+	}
+
+	public static List<Option> scanCmdOpions(Class<?> configClass) {
+		LinkedList<Option> options = new LinkedList<Option>();
+
+		for (Field field : configClass.getFields()) {
+			CmdOption anno = field.getAnnotation(CmdOption.class);
+			if (anno != null) {
+				options.add(convertToOption(field.getName(), anno.longName(),
+						anno.shortName(), anno.description(), anno.args()));
+			}
+		}
+
+		for(Method method : configClass.getMethods()) {
+			CmdOption anno = method.getAnnotation(CmdOption.class);
+			if(anno != null) {
+				options.add(convertToOption(method.getName(), anno.longName(),
+						anno.shortName(), anno.description(), anno.args()));
+			}
+		}
+		
+		return options;
 	}
 }
