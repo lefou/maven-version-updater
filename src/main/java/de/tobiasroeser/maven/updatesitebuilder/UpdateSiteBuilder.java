@@ -89,7 +89,7 @@ public class UpdateSiteBuilder {
 		}
 
 		try {
-			XmlObject xml = XmlObject.Factory.parse(file);
+			XmlObject xml = XmlObject.Factory.parse(tFile);
 			XmlCursor cursor = xml.newCursor();
 
 			cursor.selectPath("$this/site/feature");
@@ -112,7 +112,7 @@ public class UpdateSiteBuilder {
 				}
 			}
 
-			xml.save(tFile, new XmlOptions().setSavePrettyPrint()
+			xml.save(file, new XmlOptions().setSavePrettyPrint()
 					.setSavePrettyPrintIndent(2));
 
 		} catch (XmlException e) {
