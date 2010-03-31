@@ -16,6 +16,11 @@ import org.apache.xmlbeans.XmlException;
 import org.apache.xmlbeans.XmlObject;
 import org.apache.xmlbeans.XmlOptions;
 
+import de.tobiasroeser.cmdoption.CmdOption;
+import de.tobiasroeser.cmdoption.CmdOptionsParser;
+import de.tobiasroeser.cmdoption.CmdOptionsParser.Result;
+
+
 public class UpdateSiteBuilder {
 
 	private final Log log = LogFactory.getLog(UpdateSiteBuilder.class);
@@ -32,17 +37,32 @@ public class UpdateSiteBuilder {
 	}
 
 	public static class Config {
+
+		@CmdOption(longName = "site-xml", description = "The site.xml file to generateor update.", args = "PAR")
 		public String siteXmlFile = "site.xml";
+
+		@CmdOption(longName = "template-xml", description = "The template used when creating the site file.", args = "PAR")
 		public String siteXmlTemplate;
+
 		/** Map(project-key -> feature-id) */
+		@CmdOption(longName = "EXPERIMAENTAL-map-artifact-to-feature", description = "Map the maven artifact PAR1 to feature id PAR2", args = {
+				"PAR1", "PAR2" }, maxCount = -1)
 		public final Map<String, String> projectFeatureMapping = new LinkedHashMap<String, String>();
+
+		@CmdOption(description = "Update/bump feature id PAR1 to version PAR2", args = {
+				"PAR1", "PAR2" }, maxCount = -1)
 		public final Map<String, String> featureVersions = new LinkedHashMap<String, String>();
 	}
 
 	private int run(List<String> params) {
 		final Config config = new Config();
-		final int ok = Options.parseCmdline(config, params);
-		return ok == 0 ? run(config) : ok == Options.EXIT_HELP ? 0 : ok;
+		CmdOptionsParser parser = new CmdOptionsParser(Config.class);
+		final Result ok = parser.parseCmdline(params, config);
+		if (ok.isHelp()) {
+			System.out.println(parser.formatOptions());
+			return 0;
+		}
+		return ok.isOk() ? run(config) : ok.code();
 	}
 
 	public int run(Config config) {

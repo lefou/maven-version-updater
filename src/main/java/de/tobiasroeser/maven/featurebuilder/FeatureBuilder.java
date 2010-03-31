@@ -32,6 +32,9 @@ import org.apache.xmlbeans.XmlException;
 import org.apache.xmlbeans.XmlObject;
 import org.apache.xmlbeans.XmlOptions;
 
+import de.tobiasroeser.cmdoption.CmdOption;
+import de.tobiasroeser.cmdoption.CmdOptionsParser;
+import de.tobiasroeser.cmdoption.CmdOptionsParser.Result;
 import de.tobiasroeser.maven.shared.MavenXmlSupport;
 import de.tobiasroeser.maven.versionupdater.LocalArtifact;
 
@@ -42,17 +45,6 @@ public class FeatureBuilder {
 	public static void main(String[] args) {
 		try {
 			int status = new FeatureBuilder().run(Arrays.asList(args));
-			// int status = new FeatureBuilder()
-			// .run(Arrays
-			// .asList(
-			// "--feature-id",
-			// "de.ibacg.cmfs.comfiscore_feature",
-			// "--feature-version",
-			// "1.1.4",
-			// "--scan-jars",
-			// "/home/lefou/work/comfis-find-errors-but-release/cmfs-budget-trunk/cmfs-budget/de.ibacg.cmfs.comfiscore_feature/plugins",
-			// "--create-feature-xml",
-			// "/home/lefou/work/comfis-find-errors-but-release/cmfs-budget-trunk/cmfs-budget/de.ibacg.cmfs.comfiscore_feature/test.xml"));
 			System.exit(status);
 		} catch (Throwable t) {
 			LogFactory.getLog(FeatureBuilder.class).error(
@@ -62,18 +54,41 @@ public class FeatureBuilder {
 	}
 
 	public static class Config {
+
+		@CmdOption(longName = "use-pom", description = "EXPERIMENTAL: Use a maven project PAR file to read feature name, version and dependencies.", args = "PAR")
 		public String pomFile;
+
+		@CmdOption(description = "Create a feature xml file PAR", args = "PAR")
 		public String createFeatureXml;
+
+		@CmdOption(longName = "feature-id", description = "Feature ID", args = "PAR")
 		public String symbolicName;
+
+		@CmdOption(longName = "feature-version", description = "Feature version", args = "PAR")
 		public String version;
+
+		@CmdOption(longName = "scan-jars", description = "Scan directory PAR for jars and extract bundle information (used to build the feature)", args = "PAR")
 		public String scanJarsAtDir;
+
+		@CmdOption(description = "Update a feature xml file PAR", args = "PAR")
 		public String updateFeatureXml;
+
+		@CmdOption(longName = "template-xml", description = "The feature.xml template PAR file (optional for ${updateFeatureXml})", args = "PAR")
 		public String updateFeatureXmlTemplate;
+
+		@CmdOption(longName = "copy-jars-as-bundles", description = "Copy found jars (via ${scanJarsAtDir}) option) with their bundle name to directory PAR", args = "PAR")
 		public String copyJarsAsBundlesTo;
+
 		/** Map(feature-id,new-version) */
+		@CmdOption(description = "Update the version of an included feature PAR1 to version PAR2", args = {
+				"PAR1", "PAR" }, maxCount = -1)
 		public final Map<String, String> updateIncludedFeatureVersion = new LinkedHashMap<String, String>();
+
 		/** List(feature-id) */
+		@CmdOption(description = "Update the version of an included feature PAR. The version of feature PAR will be autodetected but requires the use of ${scanJarsAtDir}. Feature jars need the MANIFEST.MF entries 'FeatureBuilder-FeatureId' and 'FeatureBuilder-FeatureVersion'", args = "PAR", maxCount = -1)
 		public final List<String> updateIncludedFeature = new LinkedList<String>();
+
+		@CmdOption(longName = "jar-feature", description = "Create a feature jar to directory PAR", args = "PAR")
 		public String jarFeatureTo;
 
 		public List<String> validate() {
@@ -98,11 +113,14 @@ public class FeatureBuilder {
 	}
 
 	private int run(List<String> params) {
-
 		Config config = new Config();
-		int ok = Options.parseCmdline(config, params);
-
-		return ok != 0 ? ok : run(config);
+		CmdOptionsParser parser = new CmdOptionsParser(Config.class);
+		Result ok = parser.parseCmdline(params, config);
+		if (ok.isHelp()) {
+			System.out.println(parser.formatOptions());
+			return 0;
+		}
+		return ok.isOk() ? run(config) : ok.code();
 	}
 
 	public int run(Config config) {
@@ -151,11 +169,11 @@ public class FeatureBuilder {
 			}
 
 			if (config.updateFeatureXml != null) {
-				updateFeatureXml(config.updateFeatureXml, config.updateFeatureXmlTemplate,
-						config.symbolicName, config.version,
-						config.updateIncludedFeatureVersion, bundles);
+				updateFeatureXml(config.updateFeatureXml,
+						config.updateFeatureXmlTemplate, config.symbolicName,
+						config.version, config.updateIncludedFeatureVersion,
+						bundles);
 			}
-
 
 			if (config.copyJarsAsBundlesTo != null && scannedBundles != null) {
 				copyJarsAsBundles(scannedBundles, config.copyJarsAsBundlesTo);

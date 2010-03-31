@@ -9,9 +9,11 @@ import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.maven.pom.x400.Build;
 import org.apache.maven.pom.x400.Exclusion;
 import org.apache.maven.pom.x400.Model;
 import org.apache.maven.pom.x400.Parent;
+import org.apache.maven.pom.x400.Plugin;
 import org.apache.maven.pom.x400.Model.Dependencies;
 import org.apache.xmlbeans.XmlOptions;
 import org.jackage.util.VariableExpander;
@@ -19,6 +21,7 @@ import org.jackage.util.VariableExpander;
 import de.tobiasroeser.maven.versionupdater.Artifact;
 import de.tobiasroeser.maven.versionupdater.Dependency;
 import de.tobiasroeser.maven.versionupdater.LocalArtifact;
+import de.tobiasroeser.maven.versionupdater.UsedPlugin;
 
 public class MavenXmlSupport {
 
@@ -37,6 +40,34 @@ public class MavenXmlSupport {
 			xmlOptions = opts;
 		}
 		return xmlOptions;
+	}
+
+	public List<UsedPlugin> readUsedPluginsFromProject(Model project,
+			File pomFile) {
+		List<UsedPlugin> plugins = new LinkedList<UsedPlugin>();
+
+		LocalArtifact artifact = readLocalArtifactFromProject(project, pomFile);
+
+		VariableExpander<String> vars = new VariableExpander<String>();
+		vars.addVar("project.groupId", artifact.getGroup());
+		vars.addVar("project.artifactId", artifact.getArtifact());
+		vars.addVar("project.version", artifact.getVersion());
+
+		Build build = project.getBuild();
+		if (build != null) {
+			for (Plugin plugin : build.getPlugins().getPluginArray()) {
+				String pGroup = plugin.getGroupId();
+				pGroup = pGroup != null ? vars.expand(pGroup.trim()) : null;
+				String pArtifact = vars.expand(plugin.getArtifactId().trim());
+				String pVersion = plugin.getVersion();
+				pVersion = pVersion != null ? vars.expand(pVersion) : null;
+
+				plugins.add(new UsedPlugin(pGroup, pArtifact, pVersion,
+						artifact));
+			}
+		}
+
+		return plugins;
 	}
 
 	public LocalArtifact readLocalArtifactFromProject(Model project,
@@ -68,17 +99,27 @@ public class MavenXmlSupport {
 			version = version != null ? version : parent.getVersion();
 		}
 
-		return new LocalArtifact(vars.expand(groupId.trim()), vars.expand(artifactId.trim()),
-				vars.expand(version.trim()), packaging != null ? packaging.trim() : null, pomFile);
+		return new LocalArtifact(vars.expand(groupId.trim()), vars
+				.expand(artifactId.trim()), vars.expand(version.trim()),
+				packaging != null ? packaging.trim() : null, pomFile);
 	}
 
-	
+	/**
+	 * Map(dependency-key:list-of-dependencies).
+	 */
 	public Map<String, List<Dependency>> readDirectDependencyFromProject(
 			Model project, File pomFile) {
 
-		Map<String, List<Dependency>> depsAndNeeders = new LinkedHashMap<String, List<Dependency>>();
-
 		LocalArtifact artifact = readLocalArtifactFromProject(project, pomFile);
+		return readDirectDependencyFromLocalArtifact(artifact, project);
+	}
+
+	/**
+	 * Map(dependency-key:list-of-dependencies).
+	 */
+	public Map<String, List<Dependency>> readDirectDependencyFromLocalArtifact(LocalArtifact artifact, Model project) {
+
+		Map<String, List<Dependency>> depsAndNeeders = new LinkedHashMap<String, List<Dependency>>();
 
 		VariableExpander<String> vars = new VariableExpander<String>();
 		vars.addVar("project.groupId", artifact.getGroup());
@@ -94,18 +135,17 @@ public class MavenXmlSupport {
 				String artifactId = dep.getArtifactId().trim();
 				String version = dep.getVersion().trim();
 				String classifier = dep.getClassifier();
-				if(classifier != null) {
+				if (classifier != null) {
 					classifier = classifier.trim();
 				}
 				String scope = dep.getScope();
 				if (scope == null) {
 					scope = "compile";
-				}
-				else {
+				} else {
 					scope = scope.trim();
 				}
 				String systemPath = dep.getSystemPath();
-				if(systemPath != null) {
+				if (systemPath != null) {
 					systemPath = systemPath.trim();
 				}
 
@@ -113,29 +153,31 @@ public class MavenXmlSupport {
 
 				if (groupId.contains("$")) {
 					log.debug("Found variable in groupId: " + groupId
-							+ " -- project " + pomFile);
+							+ " -- project " + artifact.getLocation());
 					problems.add("Variable used in groupId (" + groupId + ")");
 				}
 				if (artifactId.contains("$")) {
 					log.debug("Found variable in artifactId: " + artifactId
-							+ " -- project " + pomFile);
+							+ " -- project " + artifact.getLocation());
 					problems.add("Variable used in artifactId (" + artifactId
 							+ ")");
 				}
 				if (version.contains("$")) {
 					log.debug("Found variable in version: " + version
-							+ " -- project " + pomFile);
+							+ " -- project " + artifact.getLocation());
 					problems.add("Variable used in version (" + version + ")");
 				}
 
 				List<String> exclusions = new LinkedList<String>();
-				
-				if(dep.getExclusions() != null && dep.getExclusions().getExclusionArray() != null) {
-					for(Exclusion e : dep.getExclusions().getExclusionArray()) {
-						exclusions.add(e.getGroupId()+ ":"+e.getArtifactId());
+
+				if (dep.getExclusions() != null
+						&& dep.getExclusions().getExclusionArray() != null) {
+					for (Exclusion e : dep.getExclusions().getExclusionArray()) {
+						exclusions.add(e.getGroupId().trim() + ":"
+								+ e.getArtifactId().trim());
 					}
 				}
-				
+
 				Artifact depArtifact = new Artifact(vars.expand(groupId), vars
 						.expand(artifactId), vars.expand(version), "jar");
 				Dependency dependency = new Dependency(depArtifact, artifact,
@@ -149,8 +191,8 @@ public class MavenXmlSupport {
 						+ depArtifact.getArtifact();
 
 				List<Dependency> dependants;
-				if (depsAndNeeders.containsKey(depArtifact)) {
-					dependants = depsAndNeeders.get(depArtifact);
+				if (depsAndNeeders.containsKey(key)) {
+					dependants = depsAndNeeders.get(key);
 				} else {
 					dependants = new LinkedList<Dependency>();
 					depsAndNeeders.put(key, dependants);
@@ -161,10 +203,10 @@ public class MavenXmlSupport {
 		if (project.getParent() != null) {
 			log
 					.warn("Maven projects with parents currently not fully supported!. Found one at: "
-							+ pomFile);
+							+ artifact.getLocation());
 		}
 
 		return depsAndNeeders;
 	}
-	
+
 }

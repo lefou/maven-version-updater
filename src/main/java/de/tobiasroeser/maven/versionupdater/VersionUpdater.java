@@ -35,6 +35,10 @@ import org.apache.maven.pom.x400.Model.Modules;
 import org.apache.xmlbeans.XmlException;
 import org.jackage.util.VariableExpander;
 
+import de.tobiasroeser.cmdoption.AddToCollectionHandler;
+import de.tobiasroeser.cmdoption.CmdOption;
+import de.tobiasroeser.cmdoption.CmdOptionsParser;
+import de.tobiasroeser.cmdoption.CmdOptionsParser.Result;
 import de.tobiasroeser.maven.shared.MavenXmlSupport;
 
 public class VersionUpdater {
@@ -43,64 +47,156 @@ public class VersionUpdater {
 	private String pomFileName = "pom.xml";
 	private final Log log = LogFactory.getLog(VersionUpdater.class);
 
+	private static String VERSION() {
+		return "0.1.0";
+	}
+
 	public static void main(String[] args) {
 		try {
 			int status = new VersionUpdater().run(Arrays.asList(args));
 			System.exit(status);
 		} catch (Throwable t) {
 			LogFactory.getLog(VersionUpdater.class).error(
-					"Caught an exception.", t);
+					"Caught an exception: " + t.getMessage() + "\n", t);
 			System.exit(1);
 		}
 	}
 
 	public static class Config {
+		@CmdOption(description = "Do not modify any project file")
 		public boolean dryrun = false;
+		@CmdOption(description = "List all found dependencies and their dependants")
 		public boolean listDepsAndDependants;
+
+		@CmdOption(description = "Detect project that depedend on other local project but with wrong version number")
 		public boolean detectLocalVersionMismatch;
+
+		@CmdOption(longName = "persist-artifact-list", description = "Write a list of found local artifacts (supports ${dryrun})", args = "PAR")
 		public String persistArtifactListTo;
+		@CmdOption(longName = "check-artifact-list", description = "Compare a list of artifacts PAR with the real existing artifacts locally found.", args = "PAR")
 		public String readArtifactListFrom;
-		public boolean scanSystemDeps;
-		public boolean scanLocalDeps;
-		public boolean scanLocalNonSystemDeps;
-		public boolean scanLocalSystemDeps;
+
+		@CmdOption(description = "List all found artifacts")
 		public boolean listArtifacts;
+
+		@CmdOption(description = "List all found dependencies")
+		public boolean listDependencies;
+
 		/** List(directory) */
+		@CmdOption(longName = "directory", shortName = "d", description = "Search maven project in directory PAR. If not given at least once, the current directory will be searched.", args = "PAR", maxCount = -1)
 		public final List<String> dirs = new LinkedList<String>();
-		/** Map(artifact-key -> find-exact) */
-		public final Map<String, Boolean> artifactsToFindExact = new LinkedHashMap<String, Boolean>();
-		/** Map(dependency-key -> find-exact) */
-		public final Map<String, Boolean> dependenciesToFindExact = new LinkedHashMap<String, Boolean>();
+
 		/** List(artifact-key) */
+		@CmdOption(description = "Sync version of dependants to local project PAR (supports ${dryrun})", args = "PAR")
 		public final List<String> alignLocalDepVersion = new LinkedList<String>();
 		/** Map(dependency-key-with-version) */
+		@CmdOption(longName = "set-dep-version", //
+		description = "Updates the versions of all matching dependencies to dependencies PAR (supports ${dryrun})", //
+		args = "PAR", //
+		maxCount = -1, //
+		handler = AddToCollectionHandler.class)
 		public final List<String> setDepVersions = new LinkedList<String>();
+
+		@CmdOption(longName = "exact", description = "When searching, only match exactly the same artifact keys")
+		public boolean exactMatch = false;
+
+		@CmdOption(description = "Filter (when given) search to include/exclude local dependencies", args = "true|false")
+		public Boolean filterLocal;
+
+		@CmdOption(description = "Filter (when given) search to include/exclude system dependencies", args = "true|false")
+		public Boolean filterSystem;
+
 		/** Map(file-to-write -> project) */
+		@CmdOption(longName = "extract-project-deps", description = "Extract the project dependencies of the given project PAR1 and write them to file PAR2", args = {
+				"PAR1", "PAR2" })
 		public final Map<String, String> persistDeps = new HashMap<String, String>();
+
 		/** Map(file-to-read -> project-to-update) */
+		@CmdOption(longName = "apply-project-deps", description = "Update the project PAR1 with the dependencies from file PAR2", args = {
+				"PAR1", "PAR2" }, maxCount = -1)
 		public final Map<String, String> applyDeps = new HashMap<String, String>();
 		/** Map(old-dep -> new-dep) */
+		@CmdOption(longName = "replace-dependency", description = "Replace dependency PAR1 by dependency PAR2", args = {
+				"PAR1", "PAR2" }, maxCount = -1)
 		public final Map<String, String> replaceDeps = new HashMap<String, String>();
+
 		/** Map(project -> dep-with-needs-excludes */
 		public final Map<String, String> generateExcludes = new HashMap<String, String>();
+
+		@CmdOption(description = "Update the version of the matching artifact to artifact PAR (supports ${dryrun})", //
+		args = "PAR", //
+		maxCount = -1, //
+		handler = AddToCollectionHandler.class)
 		public List<String> updateArtifactVersion = new LinkedList<String>();
+
+		@CmdOption(description = "Search for artifact(s) with pattern PAR (supports ${exactMatch})", args = "PAR")
+		public List<String> searchArtifacts = new LinkedList<String>();
+
+		@CmdOption(description = "Search for dependency(s) with pattern PAR (supports ${exactMatch})", args = "PAR")
+		public List<String> searchDependencies = new LinkedList<String>();
+
+		@CmdOption(description = "Update the artifact and all dependencies to that artifact to version PAR (same as ${updateArtifactVersion} and ${setDepVersion} used together)", args = "PAR")
+		public void updateArtifactAndDepVersion(String key) {
+			updateArtifactVersion.add(key);
+			setDepVersions.add(key);
+		}
+
+		@CmdOption(description = "Search dependecies, which are present with more to one version.")
+		public boolean searchMultiVersionDeps;
+
+		@CmdOption(description = "Search Maven-plugin PAR and the using project.", args = "PAR", maxCount = -1)
+		public List<String> searchPlugins = new LinkedList<String>();
+
+		@CmdOption(longName = "verbose", shortName = "v", description = "Verbose output")
+		public void verbose() {
+			Dependency.setVerbose(true);
+		}
 	}
 
 	public int run(List<String> args) {
 		Config config = new Config();
-		int ok = Options.parseCmdline(config, args);
-		return ok == 0 ? run(config) : ok == Options.EXIT_HELP ? 0 : ok;
+		CmdOptionsParser parser = new CmdOptionsParser(Config.class);
+		Result ok = parser.parseCmdline(args, config);
+
+		if (ok.isOk()) {
+			return run(config);
+		}
+
+		if (ok.isHelp()) {
+			System.out
+					.println(parser
+							.formatOptions(
+									"Maven Version Updater "
+											+ VERSION()
+											+ " - (c) 2009-2010 by Tobias Roeser, All Rights Reserved.\nOptions: ",
+									true));
+			return 0;
+		}
+
+		System.out.println(ok.message());
+		return ok.code();
+
 	}
 
 	public int run(Config config) {
 		try {
-			log.info("Scanning for projects based on: " + config.dirs);
-			List<LocalArtifact> reactorArtifacts = scanReactorArtifacts(config.dirs
-					.toArray(new String[config.dirs.size()]));
+			List<String> dirs = config.dirs;
+			if (dirs.size() == 0) {
+				dirs.add(".");
+			}
+
+			log.info("Scanning for projects based on: " + dirs);
+			List<LocalArtifact> reactorArtifacts = scanReactorArtifacts(dirs
+					.toArray(new String[dirs.size()]));
 
 			if (config.listArtifacts) {
 				log.info("Local artifacts:\n  - "
 						+ formatList(reactorArtifacts, "\n  - "));
+			}
+
+			if (config.listDependencies) {
+				showDependencies(reactorArtifacts, null, config.exactMatch,
+						config.filterLocal, config.filterSystem);
 			}
 
 			// Produce some output
@@ -136,18 +232,21 @@ public class VersionUpdater {
 						reactorDependencies.size(), depResult));
 			}
 
-			if (config.artifactsToFindExact.size() > 0) {
+			if (config.searchArtifacts.size() > 0) {
 				Map<String, List<LocalArtifact>> artifactMultiMap = buildArtifactMultiMap(reactorArtifacts);
-				findOrSearchArtifacts(config.artifactsToFindExact, "artifact",
-						artifactMultiMap);
+				findOrSearchArtifacts(config.searchArtifacts, "artifact",
+						config.exactMatch, artifactMultiMap);
 			}
 
-			if (config.dependenciesToFindExact.size() > 0) {
-				for (Entry<String, Boolean> search : config.dependenciesToFindExact
-						.entrySet()) {
-					showDependencies(reactorArtifacts, search.getKey(), search
-							.getValue(), null, null);
+			if (config.searchDependencies.size() > 0) {
+				for (String search : config.searchDependencies) {
+					showDependencies(reactorArtifacts, search,
+							config.exactMatch, config.filterLocal, null);
 				}
+			}
+
+			if (config.searchMultiVersionDeps) {
+				searchMultiVersionDeps(reactorArtifacts);
 			}
 
 			if (config.detectLocalVersionMismatch) {
@@ -180,22 +279,6 @@ public class VersionUpdater {
 						}
 					}
 				}
-			}
-
-			if (config.scanSystemDeps) {
-				showDependencies(reactorArtifacts, null, false, null, true);
-			}
-
-			if (config.scanLocalDeps) {
-				showDependencies(reactorArtifacts, null, false, true, null);
-			}
-
-			if (config.scanLocalSystemDeps) {
-				showDependencies(reactorArtifacts, null, false, true, true);
-			}
-
-			if (config.scanLocalNonSystemDeps) {
-				showDependencies(reactorArtifacts, null, false, true, false);
 			}
 
 			if (config.persistArtifactListTo != null) {
@@ -249,6 +332,9 @@ public class VersionUpdater {
 			log.error("Errors occured.", e);
 			return 1;
 		}
+	}
+
+	private void searchMultiVersionDeps(List<LocalArtifact> reactorArtifacts) {
 	}
 
 	private void persistArtifactListTo(List<LocalArtifact> reactorArtifacts,
@@ -965,16 +1051,15 @@ public class VersionUpdater {
 				&& lhs.getVersion().equals(rhs.getVersion());
 	}
 
-	private void findOrSearchArtifacts(
-			Map<String, Boolean> artifactsToFindExact, String typeName,
+	private void findOrSearchArtifacts(List<String> artifactsToFind,
+			String typeName, boolean exact,
 			Map<String, List<LocalArtifact>> artifactMultiMap) {
-		for (Entry<String, Boolean> key : artifactsToFindExact.entrySet()) {
-			log.info("Searching " + typeName + ": " + key.getKey());
+		for (String search : artifactsToFind) {
+			log.info("Searching " + typeName + ": " + search);
 			boolean found = false;
-			if (key.getValue()) {
-				if (artifactMultiMap.containsKey(key)) {
-					for (LocalArtifact artifact : artifactMultiMap.get(key
-							.getKey())) {
+			if (exact) {
+				if (artifactMultiMap.containsKey(search)) {
+					for (LocalArtifact artifact : artifactMultiMap.get(search)) {
 						log.info("  Found: " + artifact + " at "
 								+ artifact.getLocation());
 						found = true;
@@ -983,7 +1068,7 @@ public class VersionUpdater {
 			} else {
 				for (Entry<String, List<LocalArtifact>> entry : artifactMultiMap
 						.entrySet()) {
-					if (entry.getKey().contains(key.getKey())) {
+					if (entry.getKey().contains(search)) {
 						for (LocalArtifact artifact : entry.getValue()) {
 							log.info("  Found: " + artifact + " at "
 									+ artifact.getLocation());
@@ -993,9 +1078,7 @@ public class VersionUpdater {
 				}
 			}
 			if (!found) {
-				log
-						.error("  Could not found " + typeName + ": "
-								+ key.getKey());
+				log.error("  Could not found " + typeName + ": " + search);
 			}
 		}
 	}
@@ -1123,24 +1206,33 @@ public class VersionUpdater {
 			vars.addVar("project.artifactId", artifact.getArtifact());
 			vars.addVar("project.version", artifact.getVersion());
 
-			final File pomFile = artifact.getLocation();
-
 			try {
-				ProjectDocument o = ProjectDocument.Factory.parse(pomFile,
-						MavenXmlSupport.instance.createXmlOptions());
+				ProjectDocument o = ProjectDocument.Factory.parse(artifact
+						.getLocation(), MavenXmlSupport.instance
+						.createXmlOptions());
 
 				Model project = o.getProject();
 				Map<String, List<Dependency>> result = MavenXmlSupport.instance
-						.readDirectDependencyFromProject(project, pomFile);
-				depsAndNeeders.putAll(result);
+						.readDirectDependencyFromLocalArtifact(artifact,
+								project);
+				for (Entry<String, List<Dependency>> e : result.entrySet()) {
+					if (depsAndNeeders.containsKey(e.getKey())) {
+						// All our deps to the existing list
+						List<Dependency> deps = depsAndNeeders.get(e.getKey());
+						deps.addAll(e.getValue());
+					} else {
+						depsAndNeeders.put(e.getKey(),
+								new LinkedList<Dependency>(e.getValue()));
+					}
+				}
 
 			} catch (XmlException e) {
 				log.error("Could not parse maven project: "
-						+ pomFile.getAbsolutePath(), e);
+						+ artifact.getLocation().getAbsolutePath(), e);
 
 			} catch (IOException e) {
 				log.error("Could not parse maven project: "
-						+ pomFile.getAbsolutePath(), e);
+						+ artifact.getLocation().getAbsolutePath(), e);
 			}
 
 		}

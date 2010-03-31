@@ -23,7 +23,7 @@ public class Dependency {
 		this.system = scope.trim().equals("system");
 		this.systemPath = systemPath;
 		this.exclusions = exclusions != null ? exclusions : Collections
-				.<String>emptyList();
+				.<String> emptyList();
 	}
 
 	public Artifact getDependencyArtifact() {
@@ -75,6 +75,9 @@ public class Dependency {
 	@Override
 	public String toString() {
 		String additionalDepInfo = "";
+		if (!scope.equals("compile")) {
+			additionalDepInfo += "scope=" + scope + ",";
+		}
 		if (classifier != null) {
 			additionalDepInfo += "classifier=" + classifier + ",";
 		}
@@ -89,11 +92,19 @@ public class Dependency {
 			additionalDepInfo = "(" + additionalDepInfo + ")";
 		}
 		String string = dependencyArtifact + additionalDepInfo
-				+ " (required by " + project + ")";
-		if (Config.verbose()) {
-			return string + " at " + project.getLocation();
+				+ " (required by " + project;
+		if (verbose) {
+			string += " @ " + project.getLocation();
 		}
+		string += ")";
+
 		return string;
+	}
+
+	private static boolean verbose = false;
+
+	public static synchronized void setVerbose(boolean verbose) {
+		Dependency.verbose = verbose;
 	}
 
 }

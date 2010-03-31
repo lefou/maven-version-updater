@@ -1,1 +1,6 @@
 - Ensure, that the <project> tag in pom.xml has a xml namespace and a schema, if not write it (else, the namespace will be added to each specific tag, buhh)
+- BUG: when searching dependencies, only on dependant is shown
+- Cmdline-Parser: Referencing other Cmdline-Options (description, excludes, needs)
+- BUG: Dependency list is broken
+- Cmdline-Parser: add groups and configure group-exclusions
+- Cmdline-Parser: Two parser types: 1) full-model 2) stream (parameter ordering is relevant)    

@@ -9,13 +9,14 @@
 \usepackage[svgnames]{xcolor}
 \usepackage{hyperref}
 
+\newcommand{\MVU}{\textsc{\small{}Maven Version Updater}}
+\newcommand{\VERSION}{0.1.0}
+
 \definecolor{listgray}{rgb}{0.88,0.88,0.88} 
 
 \newcommand{\G}{\par\noindent\ensuremath{\blacktriangleright}~}
 \newcommand{\GG}{\par\vspace{-\parskip}\hspace{1.4em}\ensuremath{\triangleright}~}
 \newcommand{\code}[1]{\texttt{#1}}
-\newcommand{\MVU}{\textsc{\small{}Maven Version Updater}}
-\newcommand{\VERSION}{0.0.3}
 \newcommand{\pom}{\code{pom.xml}}
 
 %opening
@@ -117,6 +118,12 @@ This Handbook describes \MVU{} in version \VERSION{}.
 \G Therefore, there are no tools for efficient version management
 \G Maven is slow
 
+\section{Previous Releases} 
+
+\subsection{Compatibility to \MVU{} 0.0.x}
+
+Many commands line options have changed especially for searching, listing and filtering.
+
 \section{Usage}
 
 \subsection{Shell wrapper}
@@ -184,21 +191,28 @@ Then you can run it like this:
 
 \begin{Cmdline}[caption={Output of \code{mvu --help}}]
 user@dev ~/work $ mvu --help
-Options:
---help, -h                        This help
--d PAR                            Search maven project in directory PAR. If not given at least once, the local directory will be searched.
---dryrun                          Do not modify any pom.xml.
---list-deps-and-dependants        List all found dependencies and their dependants
---detect-local-version-mismatch   Detect project that depedend on other local project but with wrong version number
---find-artifact PAR               Find the artifact named PAR
---find-dependency PAR             Find the dependency named PAR
---search-artifacts PAR            Search for artifact with pattern PAR
---search-dependencies PAR         Search for dependencies with pattern PAR
---align-local-dep-version PAR     Sync version of dependants to local project PAR
---set-dep-version PAR1 PAR2       Set the version for all dependencies PAR1 to version PAR2
---scan-system-deps                Show all system dependencies
---scan-local-system-deps          Show all system dependencies that are also available as a project
---scan-local-non-system-deps      Show all non-system dependencies that are also available as a project
+Maven Version Updater 0.1.0 - (c) 2009-2010 by Tobias Roeser, All Rights Reserved.
+Options: 
+--align-local-dep-version PAR          Sync version of dependants to local project PAR (supports ${dryrun})
+--apply-project-deps PAR1 PAR2         Update the project PAR1 with the dependencies from file PAR2
+--check-artifact-list PAR              Compare a list of artifacts PAR with the real existing artifacts locally found.
+--detect-local-version-mismatch        Detect project that depedend on other local project but with wrong version number
+--directory, -d PAR                    Search maven project in directory PAR. If not given at least once, the current directory will be searched.
+--dryrun                               Do not modify any project file
+--exact                                When searching, only match exactly the same artifact keys
+--extract-project-deps PAR1 PAR2       Extract the project dependencies of the given project PAR1 and write them to file PAR2
+--filter-local true|false              Filter (when given) search to include/exclude local dependencies
+--filter-system true|false             Filter (when given) search to include/exclude system dependencies
+--list-artifacts                       List all found artifacts
+--list-dependencies                    List add found dependencies
+--list-deps-and-dependants             List all found dependencies and their dependants
+--persist-artifact-list PAR            Write a list of found local artifacts (supports ${dryrun})
+--replace-dependency PAR1 PAR2         Replace dependency PAR1 by dependency PAR2
+--search-artifacts PAR                 Search for artifact(s) with pattern PAR (supports ${exactMatch})
+--search-dependencies PAR              Search for dependency(s) with pattern PAR (supports ${exactMatch})
+--set-dep-version PAR                  Updates the versions of all matching dependencies to dependencies PAR (supports ${dryrun})
+--update-artifact-and-dep-version PAR  Upadte the artifact and all dependencies to that artifact to version PAR (same as ${updateArtifactVersion} and ${setDepVersion} used together)
+--update-artifact-version PAR          Update the version of the matching artifact to artifact PAR (supports ${dryrun})
 \end{Cmdline}
 
 \subsection{Workspace}
@@ -225,10 +239,16 @@ user@dev ~/work $ mvu --detect-local-version-mismatch
 
 \section{Limitations}
 
-No support for parent pom's.
+\begin{itemize}
+ \item No fully support for parent pom's
+ \item No support for profiles, esp. dependencies that are declared in profiles
+ \item No support for xxxManagement-sections like \code{dependencyManagement} or \code{pluginsManagement}
+\end{itemize}
 
-No support for profiles, esp. dependencies that are declared in profiles.
 
+
+
+Most of these limitation are by purpose, as they belong to maven features which itselfs make reliable and reproducable build hard.
 
 \section{Terms of use (License)}
 

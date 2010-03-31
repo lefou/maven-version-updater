@@ -1,5 +1,10 @@
 Changelog of maven-version-updater
 
+maven-version-updater 0.1.0
+- Use of new annotation-based commandline parser
+- mvu: Initial support for plugin version management 
+- Restructured cmd-line options (esp. for searching)
+
 maven-version-updater 0.0.10
 - mvu: Trim some XML elements in parsed pom.xml's before processing (e.g. groupId, artifactId, version, ...)
 - FeatureBuilder: Update/create feature.xml based on a template file
