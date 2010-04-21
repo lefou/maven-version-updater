@@ -342,7 +342,7 @@ public class FeatureBuilder {
 					String version = manifest.getMainAttributes().getValue(
 							"Bundle-Version");
 					if (symbolicName != null && version != null) {
-						symbolicName = symbolicName.split(";")[0];
+						symbolicName = symbolicName.split(";")[0].trim();
 						Bundle bundle = new Bundle(symbolicName, version, jar
 								.length(), jar);
 						bundles.add(bundle);
