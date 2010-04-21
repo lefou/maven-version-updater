@@ -5,6 +5,9 @@ maven-version-updater 0.1.0
 - mvu: Initial support for plugin version management 
 - Restructured cmd-line options (esp. for searching)
 
+maven-version-updater 0.0.11
+- Trim SymbolicName after parsing it from the MANIFEST.MF jar header
+
 maven-version-updater 0.0.10
 - mvu: Trim some XML elements in parsed pom.xml's before processing (e.g. groupId, artifactId, version, ...)
 - FeatureBuilder: Update/create feature.xml based on a template file
