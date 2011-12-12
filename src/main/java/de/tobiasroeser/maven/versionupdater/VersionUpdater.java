@@ -26,19 +26,19 @@ import java.util.Map.Entry;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.maven.pom.x400.Dependency.Exclusions;
 import org.apache.maven.pom.x400.Exclusion;
 import org.apache.maven.pom.x400.Model;
-import org.apache.maven.pom.x400.ProjectDocument;
-import org.apache.maven.pom.x400.Dependency.Exclusions;
 import org.apache.maven.pom.x400.Model.Dependencies;
 import org.apache.maven.pom.x400.Model.Modules;
+import org.apache.maven.pom.x400.ProjectDocument;
 import org.apache.xmlbeans.XmlException;
 import org.jackage.util.VariableExpander;
 
-import de.tobiasroeser.cmdoption.AddToCollectionHandler;
-import de.tobiasroeser.cmdoption.CmdOption;
-import de.tobiasroeser.cmdoption.CmdOptionsParser;
-import de.tobiasroeser.cmdoption.CmdOptionsParser.Result;
+import com.beust.jcommander.JCommander;
+import com.beust.jcommander.Parameter;
+
+import de.tobiasroeser.maven.shared.JCommanderSupport;
 import de.tobiasroeser.maven.shared.MavenXmlSupport;
 
 public class VersionUpdater {
@@ -47,135 +47,133 @@ public class VersionUpdater {
 	private String pomFileName = "pom.xml";
 	private final Log log = LogFactory.getLog(VersionUpdater.class);
 
-	private static String VERSION() {
-		return "0.1.0";
-	}
-
 	public static void main(String[] args) {
 		try {
-			int status = new VersionUpdater().run(Arrays.asList(args));
+			int status = new VersionUpdater().run(args);
 			System.exit(status);
 		} catch (Throwable t) {
-			LogFactory.getLog(VersionUpdater.class).error(
-					"Caught an exception: " + t.getMessage() + "\n", t);
+			LogFactory.getLog(VersionUpdater.class).error("Caught an exception: " + t.getMessage() + "\n", t);
 			System.exit(1);
 		}
 	}
 
 	public static class Config {
-		@CmdOption(description = "Do not modify any project file")
+		@Parameter(names = { "--help", "-h" }, description = "Show this help message.")
+		public boolean help = false;
+
+		@Parameter(names = "--dryrun", description = "Do not modify any project file")
 		public boolean dryrun = false;
-		@CmdOption(description = "List all found dependencies and their dependants")
+		@Parameter(names = "--list-deps-and-dependants", description = "List all found dependencies and their dependants")
 		public boolean listDepsAndDependants;
-
-		@CmdOption(description = "Detect project that depedend on other local project but with wrong version number")
+		@Parameter(names = "--detect-local-version-mismatch", description = "Detect project that depedend on other local project but with wrong version number")
 		public boolean detectLocalVersionMismatch;
-
-		@CmdOption(longName = "persist-artifact-list", description = "Write a list of found local artifacts (supports ${dryrun})", args = "PAR")
+		@Parameter(names = "--persist-artifact-list", description = "Write a list of found local artifacts (supports --dryrun)")
 		public String persistArtifactListTo;
-		@CmdOption(longName = "check-artifact-list", description = "Compare a list of artifacts PAR with the real existing artifacts locally found.", args = "PAR")
+		@Parameter(names = "--check-artifact-list", description = "Compare a list of artifacts with the real existing artifacts locally found.")
 		public String readArtifactListFrom;
 
-		@CmdOption(description = "List all found artifacts")
+		@Parameter(names = "--list-artifacts", description = "List all found artifacts")
 		public boolean listArtifacts;
 
-		@CmdOption(description = "List all found dependencies")
+		@Parameter(names = "--list-dependencies", description = "List all found dependencies")
 		public boolean listDependencies;
 
 		/** List(directory) */
-		@CmdOption(longName = "directory", shortName = "d", description = "Search maven project in directory PAR. If not given at least once, the current directory will be searched.", args = "PAR", maxCount = -1)
+		@Parameter(names = { "--directory", "-d" }, description = "Search maven project in directory PAR. If not given at least once, the current directory will be searched.")
 		public final List<String> dirs = new LinkedList<String>();
 
 		/** List(artifact-key) */
-		@CmdOption(description = "Sync version of dependants to local project PAR (supports ${dryrun})", args = "PAR")
+		@Parameter(names = "--align-local-dep-version", description = "Sync version of dependants to local project PAR (supports --dryrun)")
 		public final List<String> alignLocalDepVersion = new LinkedList<String>();
 		/** Map(dependency-key-with-version) */
-		@CmdOption(longName = "set-dep-version", //
-		description = "Updates the versions of all matching dependencies to dependencies PAR (supports ${dryrun})", //
-		args = "PAR", //
-		maxCount = -1, //
-		handler = AddToCollectionHandler.class)
+		@Parameter(names = "--set-dep-version", description = "Updates the versions of all matching dependencies to dependencies PAR (supports --dryrun)")
 		public final List<String> setDepVersions = new LinkedList<String>();
 
-		@CmdOption(longName = "exact", description = "When searching, only match exactly the same artifact keys")
+		@Parameter(names = "--exact", description = "When searching, only match exactly the same artifact keys")
 		public boolean exactMatch = false;
 
-		@CmdOption(description = "Filter (when given) search to include/exclude local dependencies", args = "true|false")
+		@Parameter(names = "--filter-local", description = "Filter (when given) search to include/exclude local dependencies")
 		public Boolean filterLocal;
 
-		@CmdOption(description = "Filter (when given) search to include/exclude system dependencies", args = "true|false")
+		@Parameter(names = "--filter-system", description = "Filter (when given) search to include/exclude system dependencies")
 		public Boolean filterSystem;
 
 		/** Map(file-to-write -> project) */
-		@CmdOption(longName = "extract-project-deps", description = "Extract the project dependencies of the given project PAR1 and write them to file PAR2", args = {
-				"PAR1", "PAR2" })
-		public final Map<String, String> persistDeps = new HashMap<String, String>();
+		// TODO: write a converter
+		@Parameter(names = "--extract-project-deps", description = "Extract the project dependencies of the given project PAR1 and write them to file PAR2", arity = 2)
+		public final List<String> persistDepsArgs = new LinkedList<String>();
+
+		public Map<String, String> persistDeps() {
+			return JCommanderSupport.toMap(persistDepsArgs);
+		}
 
 		/** Map(file-to-read -> project-to-update) */
-		@CmdOption(longName = "apply-project-deps", description = "Update the project PAR1 with the dependencies from file PAR2", args = {
-				"PAR1", "PAR2" }, maxCount = -1)
-		public final Map<String, String> applyDeps = new HashMap<String, String>();
+		@Parameter(names = "--apply-project-deps", description = "Update the project PAR1 with the dependencies from file PAR2", arity = 2)
+		public final List<String> applyDepsArgs = new LinkedList<String>();
+
+		public Map<String, String> applyDeps() {
+			return JCommanderSupport.toMap(applyDepsArgs);
+		}
+
 		/** Map(old-dep -> new-dep) */
-		@CmdOption(longName = "replace-dependency", description = "Replace dependency PAR1 by dependency PAR2", args = {
-				"PAR1", "PAR2" }, maxCount = -1)
-		public final Map<String, String> replaceDeps = new HashMap<String, String>();
+		@Parameter(names = "--replace-dependency", description = "Replace dependency PAR1 by dependency PAR2", arity = 2)
+		public final List<String> replaceDepsArgs = new LinkedList<String>();
+
+		public Map<String, String> replaceDeps() {
+			return JCommanderSupport.toMap(replaceDepsArgs);
+		}
 
 		/** Map(project -> dep-with-needs-excludes */
 		public final Map<String, String> generateExcludes = new HashMap<String, String>();
 
-		@CmdOption(description = "Update the version of the matching artifact to artifact PAR (supports ${dryrun})", //
-		args = "PAR", //
-		maxCount = -1, //
-		handler = AddToCollectionHandler.class)
+		@Parameter(names = "--update-artifact-version", description = "Update the version of the matching artifact to artifact PAR (supports --dryrun)")
 		public List<String> updateArtifactVersion = new LinkedList<String>();
 
-		@CmdOption(description = "Search for artifact(s) with pattern PAR (supports ${exactMatch})", args = "PAR")
+		@Parameter(names = "--search-artifacts", description = "Search for artifact(s) with pattern PAR (supports --exact)")
 		public List<String> searchArtifacts = new LinkedList<String>();
 
-		@CmdOption(description = "Search for dependency(s) with pattern PAR (supports ${exactMatch})", args = "PAR")
+		@Parameter(names = "--search-dependencies", description = "Search for dependency(s) with pattern PAR (supports --exact})")
 		public List<String> searchDependencies = new LinkedList<String>();
 
-		@CmdOption(description = "Update the artifact and all dependencies to that artifact to version PAR (same as ${updateArtifactVersion} and ${setDepVersion} used together)", args = "PAR")
-		public void updateArtifactAndDepVersion(String key) {
-			updateArtifactVersion.add(key);
-			setDepVersions.add(key);
-		}
+		@Parameter(names = "--update-artifact-and-dep-version", description = "Update the artifact and all dependencies to that artifact to version PAR (same as ${updateArtifactVersion} and ${setDepVersion} used together)")
+		public List<String> updateArtifactAndDepVersion = new LinkedList<String>();
+		// (String key) {
+		// updateArtifactVersion.add(key);
+		// setDepVersions.add(key);
+		// }
 
-		@CmdOption(description = "Search dependecies, which are present with more to one version.")
+		@Parameter(names = "--search-multi-version-deps", description = "Search dependecies, which are present with more to one version.")
 		public boolean searchMultiVersionDeps;
 
-		@CmdOption(description = "Search Maven-plugin PAR and the using project.", args = "PAR", maxCount = -1)
+		@Parameter(names = "--search-plugins", description = "Search Maven-plugin PAR and the using project.")
 		public List<String> searchPlugins = new LinkedList<String>();
 
-		@CmdOption(longName = "verbose", shortName = "v", description = "Verbose output")
-		public void verbose() {
-			Dependency.setVerbose(true);
-		}
+		@Parameter(names = { "--verbose", "-v" }, description = "Verbose output")
+		public boolean verbose = false;
+
 	}
 
-	public int run(List<String> args) {
+	public int run(String[] args) {
 		Config config = new Config();
-		CmdOptionsParser parser = new CmdOptionsParser(Config.class);
-		Result ok = parser.parseCmdline(args, config);
-
-		if (ok.isOk()) {
-			return run(config);
+		JCommander jc = new JCommander(config);
+		jc.setProgramName("mvu");
+		jc.parse(args);
+		if (config.verbose) {
+			Dependency.setVerbose(true);
 		}
-
-		if (ok.isHelp()) {
-			System.out
-					.println(parser
-							.formatOptions(
-									"Maven Version Updater "
-											+ VERSION()
-											+ " - (c) 2009-2010 by Tobias Roeser, All Rights Reserved.\nOptions: ",
-									true));
+		if (config.help) {
+			StringBuilder sb = new StringBuilder();
+			sb.append("Maven Version Updater " + BuildConfig.mvuVersion() + " - " + BuildConfig.mvuCopyright() + "\n\n");
+			jc.usage(sb);
+			System.out.println(sb);
 			return 0;
 		}
+		for (String key : config.updateArtifactAndDepVersion) {
+			config.updateArtifactVersion.add(key);
+			config.setDepVersions.add(key);
+		}
 
-		System.out.println(ok.message());
-		return ok.code();
-
+		return run(config);
 	}
 
 	public int run(Config config) {
@@ -186,17 +184,14 @@ public class VersionUpdater {
 			}
 
 			log.info("Scanning for projects based on: " + dirs);
-			List<LocalArtifact> reactorArtifacts = scanReactorArtifacts(dirs
-					.toArray(new String[dirs.size()]));
+			List<LocalArtifact> reactorArtifacts = scanReactorArtifacts(dirs.toArray(new String[dirs.size()]));
 
 			if (config.listArtifacts) {
-				log.info("Local artifacts:\n  - "
-						+ formatList(reactorArtifacts, "\n  - "));
+				log.info("Local artifacts:\n  - " + formatList(reactorArtifacts, "\n  - "));
 			}
 
 			if (config.listDependencies) {
-				showDependencies(reactorArtifacts, null, config.exactMatch,
-						config.filterLocal, config.filterSystem);
+				showDependencies(reactorArtifacts, null, config.exactMatch, config.filterLocal, config.filterSystem);
 			}
 
 			// Produce some output
@@ -204,44 +199,34 @@ public class VersionUpdater {
 				log.info("Analyzing dependencies...");
 				Map<Artifact, List<Dependency>> reactorDependencies = evaluateDirectArtifactDependencies(reactorArtifacts);
 
-				log.info(MessageFormat.format(
-						"Found {0} projects. Checking for duplicates...",
-						reactorArtifacts.size()));
+				log.info(MessageFormat.format("Found {0} projects. Checking for duplicates...", reactorArtifacts.size()));
 				checkForDuplicates(reactorArtifacts);
-				log.info("Found the following artifacts: \n  "
-						+ formatList(reactorArtifacts, "\n  "));
+				log.info("Found the following artifacts: \n  " + formatList(reactorArtifacts, "\n  "));
 
 				Map<String, List<LocalArtifact>> localArtifacts = buildArtifactMultiMap(reactorArtifacts);
 				Map<String, List<LocalArtifact>> depKeysToDependants = buildDependencyMultiMap(reactorDependencies);
 
 				StringBuilder depResult = new StringBuilder();
 				for (Boolean showLocal : new Boolean[] { false, true }) {
-					for (Entry<String, List<LocalArtifact>> dep : depKeysToDependants
-							.entrySet()) {
-						boolean local = localArtifacts
-								.containsKey(dep.getKey());
+					for (Entry<String, List<LocalArtifact>> dep : depKeysToDependants.entrySet()) {
+						boolean local = localArtifacts.containsKey(dep.getKey());
 						if (local == showLocal) {
-							depResult.append((MessageFormat.format(
-									"\n  {2} {0}\n   - {1}", dep.getKey(),
-									formatList(dep.getValue(), "\n   - "),
-									local ? "LOCAL" : "")));
+							depResult.append((MessageFormat.format("\n  {2} {0}\n   - {1}", dep.getKey(),
+									formatList(dep.getValue(), "\n   - "), local ? "LOCAL" : "")));
 						}
 					}
 				}
-				log.info(MessageFormat.format("Found {0} dependencies: {1}",
-						reactorDependencies.size(), depResult));
+				log.info(MessageFormat.format("Found {0} dependencies: {1}", reactorDependencies.size(), depResult));
 			}
 
 			if (config.searchArtifacts.size() > 0) {
 				Map<String, List<LocalArtifact>> artifactMultiMap = buildArtifactMultiMap(reactorArtifacts);
-				findOrSearchArtifacts(config.searchArtifacts, "artifact",
-						config.exactMatch, artifactMultiMap);
+				findOrSearchArtifacts(config.searchArtifacts, "artifact", config.exactMatch, artifactMultiMap);
 			}
 
 			if (config.searchDependencies.size() > 0) {
 				for (String search : config.searchDependencies) {
-					showDependencies(reactorArtifacts, search,
-							config.exactMatch, config.filterLocal, null);
+					showDependencies(reactorArtifacts, search, config.exactMatch, config.filterLocal, null);
 				}
 			}
 
@@ -254,11 +239,9 @@ public class VersionUpdater {
 			}
 
 			if (config.alignLocalDepVersion.size() > 0) {
-				List<VersionMismatch> mismatches = reportVersionMismatch(
-						reactorArtifacts, config.alignLocalDepVersion);
+				List<VersionMismatch> mismatches = reportVersionMismatch(reactorArtifacts, config.alignLocalDepVersion);
 				for (VersionMismatch vm : mismatches) {
-					modifyDependencyVersion(vm.getDependency(), vm
-							.getArtifact().getVersion(), config.dryrun);
+					modifyDependencyVersion(vm.getDependency(), vm.getArtifact().getVersion(), config.dryrun);
 				}
 			}
 
@@ -267,55 +250,46 @@ public class VersionUpdater {
 				for (String key : config.setDepVersions) {
 					String[] split = key.split(":", 3);
 					if (split.length != 3) {
-						throw new IllegalAccessException(
-								"Illegal dependency key given: " + key);
+						throw new IllegalAccessException("Illegal dependency key given: " + key);
 					}
-					List<Dependency> depsToChange = deps.get(split[0] + ":"
-							+ split[1]);
+					List<Dependency> depsToChange = deps.get(split[0] + ":" + split[1]);
 					if (depsToChange != null) {
 						for (Dependency dependency : depsToChange) {
-							modifyDependencyVersion(dependency, split[2],
-									config.dryrun);
+							modifyDependencyVersion(dependency, split[2], config.dryrun);
 						}
 					}
 				}
 			}
 
 			if (config.persistArtifactListTo != null) {
-				persistArtifactListTo(reactorArtifacts,
-						config.persistArtifactListTo, config.dryrun);
+				persistArtifactListTo(reactorArtifacts, config.persistArtifactListTo, config.dryrun);
 			}
 
 			if (config.readArtifactListFrom != null) {
-				readAndCheckArtifactList(reactorArtifacts,
-						config.readArtifactListFrom);
+				readAndCheckArtifactList(reactorArtifacts, config.readArtifactListFrom);
 			}
 
-			if (config.persistDeps.size() > 0) {
-				for (Entry<String, String> e : config.persistDeps.entrySet()) {
-					saveDepsToFile(e.getKey(), e.getValue(), reactorArtifacts,
-							config.dryrun);
+			if (config.persistDeps().size() > 0) {
+				for (Entry<String, String> e : config.persistDeps().entrySet()) {
+					saveDepsToFile(e.getKey(), e.getValue(), reactorArtifacts, config.dryrun);
 				}
 			}
 
-			if (config.applyDeps.size() > 0) {
-				for (Entry<String, String> e : config.applyDeps.entrySet()) {
-					updateProjectDeps(e.getKey(), e.getValue(),
-							reactorArtifacts, config.dryrun);
+			if (config.applyDeps().size() > 0) {
+				for (Entry<String, String> e : config.applyDeps().entrySet()) {
+					updateProjectDeps(e.getKey(), e.getValue(), reactorArtifacts, config.dryrun);
 				}
 			}
 
-			if (config.replaceDeps.size() > 0) {
-				for (Entry<String, String> e : config.replaceDeps.entrySet()) {
-					replaceDependency(e.getKey(), e.getValue(),
-							reactorArtifacts, config.dryrun);
+			if (config.replaceDeps().size() > 0) {
+				for (Entry<String, String> e : config.replaceDeps().entrySet()) {
+					replaceDependency(e.getKey(), e.getValue(), reactorArtifacts, config.dryrun);
 				}
 			}
 
 			if (config.updateArtifactVersion.size() > 0) {
 				for (String artifact : config.updateArtifactVersion) {
-					updateProjectVersion(reactorArtifacts, artifact,
-							config.dryrun);
+					updateProjectVersion(reactorArtifacts, artifact, config.dryrun);
 				}
 			}
 
@@ -337,8 +311,7 @@ public class VersionUpdater {
 	private void searchMultiVersionDeps(List<LocalArtifact> reactorArtifacts) {
 	}
 
-	private void persistArtifactListTo(List<LocalArtifact> reactorArtifacts,
-			String outputTo, boolean dryrun) {
+	private void persistArtifactListTo(List<LocalArtifact> reactorArtifacts, String outputTo, boolean dryrun) {
 
 		File file = new File(outputTo);
 		if (dryrun) {
@@ -350,15 +323,13 @@ public class VersionUpdater {
 			log.info("Writing artifacts to " + file.getAbsolutePath());
 
 			if (file.exists()) {
-				log.error("File '" + file.getAbsolutePath()
-						+ "' already exists. Skipping.");
+				log.error("File '" + file.getAbsolutePath() + "' already exists. Skipping.");
 				return;
 			}
 
 			PrintWriter printWriter = new PrintWriter(file);
 
-			ArrayList<LocalArtifact> sortedArtifacts = new ArrayList<LocalArtifact>(
-					reactorArtifacts);
+			ArrayList<LocalArtifact> sortedArtifacts = new ArrayList<LocalArtifact>(reactorArtifacts);
 			Collections.sort(sortedArtifacts, new Comparator<LocalArtifact>() {
 				public int compare(LocalArtifact o1, LocalArtifact o2) {
 					int comp = o1.getGroup().compareTo(o2.getGroup());
@@ -373,8 +344,7 @@ public class VersionUpdater {
 			});
 
 			for (LocalArtifact artifact : reactorArtifacts) {
-				String line = artifact.getGroup() + ":"
-						+ artifact.getArtifact() + ":" + artifact.getVersion();
+				String line = artifact.getGroup() + ":" + artifact.getArtifact() + ":" + artifact.getVersion();
 				printWriter.println(line);
 			}
 
@@ -386,8 +356,7 @@ public class VersionUpdater {
 
 	}
 
-	private void updateProjectVersion(List<LocalArtifact> reactorArtifacts,
-			String artifact, boolean dryrun) {
+	private void updateProjectVersion(List<LocalArtifact> reactorArtifacts, String artifact, boolean dryrun) {
 
 		String[] split = artifact.split(":", 3);
 		if (split.length != 3) {
@@ -398,8 +367,7 @@ public class VersionUpdater {
 		LocalArtifact candidate = null;
 
 		for (LocalArtifact localArtifact : reactorArtifacts) {
-			if (localArtifact.getGroup().equals(split[0])
-					&& localArtifact.getArtifact().equals(split[1])) {
+			if (localArtifact.getGroup().equals(split[0]) && localArtifact.getArtifact().equals(split[1])) {
 				candidate = localArtifact;
 				break;
 			}
@@ -415,13 +383,11 @@ public class VersionUpdater {
 			return;
 		}
 
-		log.info("Updating version for project: " + candidate + " to "
-				+ split[2]);
+		log.info("Updating version for project: " + candidate + " to " + split[2]);
 
 		ProjectDocument o;
 		try {
-			o = ProjectDocument.Factory.parse(candidate.getLocation(),
-					MavenXmlSupport.instance.createXmlOptions());
+			o = ProjectDocument.Factory.parse(candidate.getLocation(), MavenXmlSupport.instance.createXmlOptions());
 
 			Model project = o.getProject();
 			project.setVersion(split[2]);
@@ -429,11 +395,9 @@ public class VersionUpdater {
 			o.save(candidate.getLocation());
 
 		} catch (XmlException e) {
-			log.error("Could not process pom file: " + candidate.getLocation(),
-					e);
+			log.error("Could not process pom file: " + candidate.getLocation(), e);
 		} catch (IOException e) {
-			log.error("Could not process pom file: " + candidate.getLocation(),
-					e);
+			log.error("Could not process pom file: " + candidate.getLocation(), e);
 		}
 	}
 
@@ -441,7 +405,7 @@ public class VersionUpdater {
 	// List<LocalArtifact> reactorArtifacts, boolean dryrun) {
 	//
 	// LocalArtifact candidate = null;
-	//		
+	//
 	// for (LocalArtifact artifact : reactorArtifacts) {
 	// if(artifact.toString().equals(key)) {
 	// candidate = artifact;
@@ -452,36 +416,32 @@ public class VersionUpdater {
 	// log.error("Could not found project: "+key);
 	// return;
 	// }
-	//		
+	//
 	// Map<String, List<Dependency>> depMap =
 	// findDirectArtifactDependencies(Arrays.asList(candidate));
 	// for(List<Dependency> depList:depMap.values()) {
 	// for(Dependency dep : depList) {
-	//				
+	//
 	// }
 	// }
-	//		
+	//
 	// }
 
-	private void replaceDependency(String oldDependencyKey,
-			String newDependencyKey, List<LocalArtifact> reactorArtifacts,
-			boolean dryrun) {
+	private void replaceDependency(String oldDependencyKey, String newDependencyKey,
+			List<LocalArtifact> reactorArtifacts, boolean dryrun) {
 
 		Map<String, List<Dependency>> depMap = findDirectArtifactDependencies(reactorArtifacts);
 
 		for (List<Dependency> depList : depMap.values()) {
 			for (Dependency dep : depList) {
-				if (dep.getDependencyArtifact().toString().equals(
-						oldDependencyKey)) {
+				if (dep.getDependencyArtifact().toString().equals(oldDependencyKey)) {
 
 					String[] split = newDependencyKey.split(":", 3);
 					if (split.length != 3) {
-						log.warn("Incorrect dependency key given: "
-								+ newDependencyKey);
+						log.warn("Incorrect dependency key given: " + newDependencyKey);
 						continue;
 					}
-					Artifact artifact = new Artifact(split[0], split[1],
-							split[2], "jar");
+					Artifact artifact = new Artifact(split[0], split[1], split[2], "jar");
 					modifyDependency(dep, artifact, dryrun);
 				}
 			}
@@ -489,8 +449,7 @@ public class VersionUpdater {
 
 	}
 
-	private void updateProjectDeps(String readDepsFromFile,
-			String projectToUpate, List<LocalArtifact> localArtifacts,
+	private void updateProjectDeps(String readDepsFromFile, String projectToUpate, List<LocalArtifact> localArtifacts,
 			boolean dryrun) {
 
 		LocalArtifact candidate = null;
@@ -512,8 +471,7 @@ public class VersionUpdater {
 			return;
 		}
 
-		List<Dependency> deps = readDependenciesFromTextFile(readDepsFromFile,
-				candidate, dryrun);
+		List<Dependency> deps = readDependenciesFromTextFile(readDepsFromFile, candidate, dryrun);
 		if (deps == null) {
 			return;
 		}
@@ -522,16 +480,15 @@ public class VersionUpdater {
 
 	}
 
-	private List<Dependency> readDependenciesFromTextFile(
-			String readDepsFromFile, LocalArtifact candidate, boolean dryrun) {
+	private List<Dependency> readDependenciesFromTextFile(String readDepsFromFile, LocalArtifact candidate,
+			boolean dryrun) {
 
 		List<Dependency> deps = new LinkedList<Dependency>();
 
 		File file = new File(readDepsFromFile);
 
 		if (!file.exists() || !file.isFile()) {
-			log.error("Cannot read not-existing file: "
-					+ file.getAbsolutePath());
+			log.error("Cannot read not-existing file: " + file.getAbsolutePath());
 			return null;
 		}
 
@@ -552,9 +509,7 @@ public class VersionUpdater {
 				}
 				String[] part1 = split[0].split(":", 3);
 				if (part1.length < 3) {
-					log
-							.warn("Incorrect line found! Could not parse Maven artifact coordiantes. Line: "
-									+ line);
+					log.warn("Incorrect line found! Could not parse Maven artifact coordiantes. Line: " + line);
 					continue;
 				}
 				String groupId = part1[0];
@@ -578,8 +533,7 @@ public class VersionUpdater {
 						} else if (add.startsWith("systemPath=")) {
 							systemPath = add.substring(add.indexOf("=") + 1);
 						} else if (add.startsWith("exclusions=")) {
-							String[] excls = add
-									.substring(add.indexOf("=") + 1).split(";");
+							String[] excls = add.substring(add.indexOf("=") + 1).split(";");
 							exclusions.addAll(Arrays.asList(excls));
 						} else {
 							log.warn("Could not parse line: " + line);
@@ -587,9 +541,8 @@ public class VersionUpdater {
 					}
 				}
 
-				Dependency dep = new Dependency(new Artifact(groupId,
-						artifactId, version, "jar"), candidate, classifier,
-						scope, systemPath, exclusions);
+				Dependency dep = new Dependency(new Artifact(groupId, artifactId, version, "jar"), candidate,
+						classifier, scope, systemPath, exclusions);
 				deps.add(dep);
 
 			}
@@ -608,8 +561,7 @@ public class VersionUpdater {
 		return null;
 	}
 
-	private void saveDepsToFile(String saveToFile, String project,
-			List<LocalArtifact> localArtifacts, boolean dryrun) {
+	private void saveDepsToFile(String saveToFile, String project, List<LocalArtifact> localArtifacts, boolean dryrun) {
 		File file = new File(saveToFile);
 		if (file.exists()) {
 			log.error("File already exists: " + file.getAbsolutePath());
@@ -636,19 +588,15 @@ public class VersionUpdater {
 		}
 
 		if (dryrun) {
-			log.info("I would save dependencies of project '" + candidate
-					+ "' to file: " + file.getAbsolutePath());
+			log.info("I would save dependencies of project '" + candidate + "' to file: " + file.getAbsolutePath());
 			return;
 		}
-		log.info("Saving dependencies of project '" + candidate + "' to file: "
-				+ file.getAbsolutePath());
+		log.info("Saving dependencies of project '" + candidate + "' to file: " + file.getAbsolutePath());
 
-		List<Dependency> deps = readDepsOfPom(candidate.getLocation()
-				.getAbsolutePath());
+		List<Dependency> deps = readDepsOfPom(candidate.getLocation().getAbsolutePath());
 
 		try {
-			PrintStream stream = new PrintStream(new BufferedOutputStream(
-					new FileOutputStream(file)));
+			PrintStream stream = new PrintStream(new BufferedOutputStream(new FileOutputStream(file)));
 			stream.println("# Dependencies of: " + candidate);
 			for (Dependency dep : deps) {
 				String key = dep.getDependencyArtifact().toString();
@@ -663,8 +611,7 @@ public class VersionUpdater {
 					adds.add("systemPath=" + dep.getSystemPath());
 				}
 				if (dep.getExclusions().size() > 0) {
-					adds.add("exclusions="
-							+ formatList(dep.getExclusions(), ";"));
+					adds.add("exclusions=" + formatList(dep.getExclusions(), ";"));
 				}
 				if (adds.size() > 0) {
 					key += "(" + formatList(adds, ",") + ")";
@@ -679,21 +626,18 @@ public class VersionUpdater {
 
 	}
 
-	private void readAndCheckArtifactList(List<LocalArtifact> reactorArtifacts,
-			String listToReadAndParse) {
+	private void readAndCheckArtifactList(List<LocalArtifact> reactorArtifacts, String listToReadAndParse) {
 
 		File file = new File(listToReadAndParse);
 		if (!file.exists() || !file.isFile()) {
-			log.error("Cannot read artifact list from file "
-					+ file.getAbsolutePath());
+			log.error("Cannot read artifact list from file " + file.getAbsolutePath());
 			return;
 		}
 
 		List<Artifact> readArtifacts = new LinkedList<Artifact>();
 
 		try {
-			LineNumberReader reader = new LineNumberReader(new BufferedReader(
-					new FileReader(file)));
+			LineNumberReader reader = new LineNumberReader(new BufferedReader(new FileReader(file)));
 			String line = null;
 
 			while ((line = reader.readLine()) != null) {
@@ -708,16 +652,13 @@ public class VersionUpdater {
 					continue;
 				}
 
-				readArtifacts.add(new Artifact(split[0], split[1], split[2],
-						null));
+				readArtifacts.add(new Artifact(split[0], split[1], split[2], null));
 			}
 
 		} catch (FileNotFoundException e) {
-			log.error("Could not found artifact list at "
-					+ file.getAbsolutePath(), e);
+			log.error("Could not found artifact list at " + file.getAbsolutePath(), e);
 		} catch (IOException e) {
-			log.error("Could not parse artifact list at "
-					+ file.getAbsolutePath(), e);
+			log.error("Could not parse artifact list at " + file.getAbsolutePath(), e);
 		}
 
 		// Convert LocalArtifacts to Artifacts (to match the equals() contract)
@@ -734,8 +675,7 @@ public class VersionUpdater {
 		List<Artifact> equalExistingArtifacts = new LinkedList<Artifact>();
 		for (Artifact readArtifact : readArtifacts) {
 			for (Artifact existingArtifact : existingArtifacts) {
-				if (readArtifact
-						.equalsByProjectNameAndVersion(existingArtifact)) {
+				if (readArtifact.equalsByProjectNameAndVersion(existingArtifact)) {
 					equalArtifacts.add(readArtifact);
 					equalExistingArtifacts.add(existingArtifact);
 				}
@@ -749,8 +689,7 @@ public class VersionUpdater {
 		for (Artifact readArtifact : readArtifacts) {
 			for (Artifact existingArtifact : existingArtifacts) {
 				if (readArtifact.equalsByProjectName(existingArtifact)
-						&& !readArtifact.getVersion().equals(
-								existingArtifact.getVersion())) {
+						&& !readArtifact.getVersion().equals(existingArtifact.getVersion())) {
 					versionMismatches.put(readArtifact, existingArtifact);
 				}
 			}
@@ -763,97 +702,73 @@ public class VersionUpdater {
 		// local additional = existingArtifacts
 
 		// Output
-		boolean ok = readArtifacts.size() == 0 && existingArtifacts.size() == 0
-				&& versionMismatches.size() == 0;
+		boolean ok = readArtifacts.size() == 0 && existingArtifacts.size() == 0 && versionMismatches.size() == 0;
 		if (ok) {
 			log.info("The list of artifacts matches the existing artifacts.");
 		}
 		if (equalArtifacts.size() > 0) {
-			log.debug("The following artifacts matches perfectly:\n  - "
-					+ formatList(equalArtifacts, "\n  - "));
+			log.debug("The following artifacts matches perfectly:\n  - " + formatList(equalArtifacts, "\n  - "));
 		}
 		if (versionMismatches.size() > 0) {
-			log
-					.info("The following artifacts versions do not match (file=local):\n  - "
-							+ formatList(versionMismatches.entrySet(), "\n  - "));
+			log.info("The following artifacts versions do not match (file=local):\n  - "
+					+ formatList(versionMismatches.entrySet(), "\n  - "));
 		}
 		if (readArtifacts.size() > 0) {
-			log.info("The following artifacts are locally missing:\n  - "
-					+ formatList(readArtifacts, "\n  - "));
+			log.info("The following artifacts are locally missing:\n  - " + formatList(readArtifacts, "\n  - "));
 		}
 		if (existingArtifacts.size() > 0) {
-			log
-					.info("The following artifacts are only locally available:\n  - "
-							+ formatList(existingArtifacts, "\n  - "));
+			log.info("The following artifacts are only locally available:\n  - "
+					+ formatList(existingArtifacts, "\n  - "));
 		}
 	}
 
-	private void modifyDependencyVersion(Dependency dependency, String version,
-			boolean dryrun) {
+	private void modifyDependencyVersion(Dependency dependency, String version, boolean dryrun) {
 
-		Artifact versionArtifact = new Artifact(dependency
-				.getDependencyArtifact().getGroup(), dependency
-				.getDependencyArtifact().getArtifact(), version, dependency
-				.getDependencyArtifact().getPackaging());
+		Artifact versionArtifact = new Artifact(dependency.getDependencyArtifact().getGroup(), dependency
+				.getDependencyArtifact().getArtifact(), version, dependency.getDependencyArtifact().getPackaging());
 
 		modifyDependency(dependency, versionArtifact, dryrun);
 	}
 
-	private void modifyDependency(Dependency dependency,
-			Artifact newDependencyArtifact, boolean dryrun) {
+	private void modifyDependency(Dependency dependency, Artifact newDependencyArtifact, boolean dryrun) {
 		if (!dependency.isChangeAllowed()) {
-			log.info("Modifying project " + dependency.getProject()
-					+ " is not allowed because: \""
-					+ dependency.getChangeProtectBecause() + "\" in "
-					+ dependency);
+			log.info("Modifying project " + dependency.getProject() + " is not allowed because: \""
+					+ dependency.getChangeProtectBecause() + "\" in " + dependency);
 			return;
 		}
 
 		if (newDependencyArtifact != null) {
 			if (dryrun) {
-				log.info("(dryrun) I would change dependency: " + dependency
-						+ "\n  - to: " + newDependencyArtifact);
+				log.info("(dryrun) I would change dependency: " + dependency + "\n  - to: " + newDependencyArtifact);
 				return;
 			}
 
-			log.info("About to change dependency: " + dependency + " to: "
-					+ newDependencyArtifact);
+			log.info("About to change dependency: " + dependency + " to: " + newDependencyArtifact);
 
 			File pomFile = dependency.getProject().getLocation();
 
 			ProjectDocument o;
 			try {
-				o = ProjectDocument.Factory.parse(pomFile,
-						MavenXmlSupport.instance.createXmlOptions());
+				o = ProjectDocument.Factory.parse(pomFile, MavenXmlSupport.instance.createXmlOptions());
 				boolean neededSave = false;
 
 				Model project = o.getProject();
-				for (org.apache.maven.pom.x400.Dependency dep : project
-						.getDependencies().getDependencyArray()) {
-					if (dep.getGroupId().equals(
-							dependency.getDependencyArtifact().getGroup())
-							&& dep.getArtifactId().equals(
-									dependency.getDependencyArtifact()
-											.getArtifact())
-							&& dep.getVersion().equals(
-									dependency.getDependencyArtifact()
-											.getVersion())) {
+				for (org.apache.maven.pom.x400.Dependency dep : project.getDependencies().getDependencyArray()) {
+					if (dep.getGroupId().equals(dependency.getDependencyArtifact().getGroup())
+							&& dep.getArtifactId().equals(dependency.getDependencyArtifact().getArtifact())
+							&& dep.getVersion().equals(dependency.getDependencyArtifact().getVersion())) {
 
-						if (!newDependencyArtifact.getGroup().equals(
-								dep.getGroupId())) {
+						if (!newDependencyArtifact.getGroup().equals(dep.getGroupId())) {
 							dep.setGroupId(newDependencyArtifact.getGroup());
 							neededSave = true;
 						}
 
-						if (!newDependencyArtifact.getArtifact().equals(
-								dep.getArtifactId())) {
-							dep.setArtifactId(newDependencyArtifact
-									.getArtifact());
+						if (!newDependencyArtifact.getArtifact().equals(dep.getArtifactId())) {
+							dep.setArtifactId(newDependencyArtifact.getArtifact());
 							neededSave = true;
 						}
 
-						if (!newDependencyArtifact.getVersion().equals(
-								dep.getVersion())) {
+						if (!newDependencyArtifact.getVersion().equals(dep.getVersion())) {
 							dep.setVersion(newDependencyArtifact.getVersion());
 							neededSave = true;
 						}
@@ -874,8 +789,7 @@ public class VersionUpdater {
 		}
 	}
 
-	private void addDependencies(LocalArtifact projectToChange,
-			List<Dependency> dependencies, boolean dryrun) {
+	private void addDependencies(LocalArtifact projectToChange, List<Dependency> dependencies, boolean dryrun) {
 		if (dryrun) {
 			log.info("(dryrun) I would add dependencies to " + projectToChange);
 			return;
@@ -887,18 +801,15 @@ public class VersionUpdater {
 
 		ProjectDocument o;
 		try {
-			o = ProjectDocument.Factory.parse(pomFile, MavenXmlSupport.instance
-					.createXmlOptions());
+			o = ProjectDocument.Factory.parse(pomFile, MavenXmlSupport.instance.createXmlOptions());
 
 			Model project = o.getProject();
 
-			project.setDependencies(Dependencies.Factory
-					.newInstance(MavenXmlSupport.instance.createXmlOptions()));
+			project.setDependencies(Dependencies.Factory.newInstance(MavenXmlSupport.instance.createXmlOptions()));
 
 			for (Dependency dep : dependencies) {
 
-				org.apache.maven.pom.x400.Dependency mvnDep = project
-						.getDependencies().addNewDependency();
+				org.apache.maven.pom.x400.Dependency mvnDep = project.getDependencies().addNewDependency();
 
 				mvnDep.setGroupId(dep.getDependencyArtifact().getGroup());
 				mvnDep.setArtifactId(dep.getDependencyArtifact().getArtifact());
@@ -914,9 +825,7 @@ public class VersionUpdater {
 				}
 				if (dep.getExclusions().size() > 0) {
 					if (!mvnDep.isSetExclusions()) {
-						mvnDep.setExclusions(Exclusions.Factory
-								.newInstance(MavenXmlSupport.instance
-										.createXmlOptions()));
+						mvnDep.setExclusions(Exclusions.Factory.newInstance(MavenXmlSupport.instance.createXmlOptions()));
 					}
 					Exclusions mvnExes = mvnDep.getExclusions();
 					for (String e : dep.getExclusions()) {
@@ -940,8 +849,8 @@ public class VersionUpdater {
 
 	}
 
-	private void showDependencies(List<LocalArtifact> localArtifacts,
-			String pattern, boolean exact, Boolean local, Boolean system) {
+	private void showDependencies(List<LocalArtifact> localArtifacts, String pattern, boolean exact, Boolean local,
+			Boolean system) {
 		StringBuilder depResult = new StringBuilder();
 
 		Map<String, List<Dependency>> deps = findDirectArtifactDependencies(localArtifacts);
@@ -950,15 +859,13 @@ public class VersionUpdater {
 
 		for (Entry<String, List<Dependency>> dep : deps.entrySet()) {
 			String key = dep.getKey();
-			if (pattern == null || (!exact && key.contains(pattern))
-					|| (exact && key.equals(pattern))) {
+			if (pattern == null || (!exact && key.contains(pattern)) || (exact && key.equals(pattern))) {
 				List<Dependency> filteredDeps = dep.getValue();
 
 				if (local != null) {
 					boolean isLocal = false;
 					for (LocalArtifact artifact : localArtifacts) {
-						String artifactKey = artifact.getGroup() + ":"
-								+ artifact.getArtifact();
+						String artifactKey = artifact.getGroup() + ":" + artifact.getArtifact();
 						if (key.equals(artifactKey)) {
 							isLocal = true;
 							break;
@@ -981,17 +888,16 @@ public class VersionUpdater {
 
 				if (filteredDeps.size() > 0) {
 					count += filteredDeps.size();
-					depResult.append((MessageFormat.format("\n  {0}\n   - {1}",
-							key, formatList(filteredDeps, "\n   - "))));
+					depResult.append((MessageFormat.format("\n  {0}\n   - {1}", key,
+							formatList(filteredDeps, "\n   - "))));
 				}
 			}
 		}
-		log.info(MessageFormat.format("Found {0} dependencies: {1}", count,
-				depResult));
+		log.info(MessageFormat.format("Found {0} dependencies: {1}", count, depResult));
 	}
 
-	private List<VersionMismatch> reportVersionMismatch(
-			List<LocalArtifact> reactorArtifacts, List<String> selectArtifacts) {
+	private List<VersionMismatch> reportVersionMismatch(List<LocalArtifact> reactorArtifacts,
+			List<String> selectArtifacts) {
 		List<VersionMismatch> report = new LinkedList<VersionMismatch>();
 
 		Map<String, List<LocalArtifact>> artifactMap = buildArtifactMultiMap(reactorArtifacts);
@@ -1004,11 +910,9 @@ public class VersionUpdater {
 			}
 		}
 
-		for (Entry<Artifact, List<Dependency>> depEntry : directDependencies
-				.entrySet()) {
+		for (Entry<Artifact, List<Dependency>> depEntry : directDependencies.entrySet()) {
 
-			String key = depEntry.getKey().getGroup() + ":"
-					+ depEntry.getKey().getArtifact();
+			String key = depEntry.getKey().getGroup() + ":" + depEntry.getKey().getArtifact();
 			if (selected.size() > 0) {
 				if (selected.containsKey(key)) {
 					selected.put(key, true);
@@ -1019,17 +923,15 @@ public class VersionUpdater {
 			}
 
 			if (artifactMap.containsKey(key)) {
-				if (!equalsArtifacts(artifactMap.get(key).get(0), depEntry
-						.getKey())) {
+				if (!equalsArtifacts(artifactMap.get(key).get(0), depEntry.getKey())) {
 
-					log.info("Mismatch detected for: " + key
-							+ "\n  Required is: " + depEntry.getKey()
-							+ "\n  Local available is: " + artifactMap.get(key)
-							+ "\n  Dependencies: " + depEntry.getValue());
+					log.info("Mismatch detected for: " + key + "\n  Required is: " + depEntry.getKey()
+							+ "\n  Local available is: " + artifactMap.get(key) + "\n  Dependencies: "
+							+ depEntry.getValue());
 
 					for (Dependency depSource : depEntry.getValue()) {
-						final VersionMismatch versionMismatch = new VersionMismatch(
-								key, artifactMap.get(key).get(0), depSource);
+						final VersionMismatch versionMismatch = new VersionMismatch(key, artifactMap.get(key).get(0),
+								depSource);
 						report.add(versionMismatch);
 					}
 				}
@@ -1046,13 +948,11 @@ public class VersionUpdater {
 	}
 
 	private boolean equalsArtifacts(Artifact lhs, Artifact rhs) {
-		return lhs.getGroup().equals(rhs.getGroup())
-				&& lhs.getArtifact().equals(rhs.getArtifact())
+		return lhs.getGroup().equals(rhs.getGroup()) && lhs.getArtifact().equals(rhs.getArtifact())
 				&& lhs.getVersion().equals(rhs.getVersion());
 	}
 
-	private void findOrSearchArtifacts(List<String> artifactsToFind,
-			String typeName, boolean exact,
+	private void findOrSearchArtifacts(List<String> artifactsToFind, String typeName, boolean exact,
 			Map<String, List<LocalArtifact>> artifactMultiMap) {
 		for (String search : artifactsToFind) {
 			log.info("Searching " + typeName + ": " + search);
@@ -1060,18 +960,15 @@ public class VersionUpdater {
 			if (exact) {
 				if (artifactMultiMap.containsKey(search)) {
 					for (LocalArtifact artifact : artifactMultiMap.get(search)) {
-						log.info("  Found: " + artifact + " at "
-								+ artifact.getLocation());
+						log.info("  Found: " + artifact + " at " + artifact.getLocation());
 						found = true;
 					}
 				}
 			} else {
-				for (Entry<String, List<LocalArtifact>> entry : artifactMultiMap
-						.entrySet()) {
+				for (Entry<String, List<LocalArtifact>> entry : artifactMultiMap.entrySet()) {
 					if (entry.getKey().contains(search)) {
 						for (LocalArtifact artifact : entry.getValue()) {
-							log.info("  Found: " + artifact + " at "
-									+ artifact.getLocation());
+							log.info("  Found: " + artifact + " at " + artifact.getLocation());
 							found = true;
 						}
 					}
@@ -1083,8 +980,7 @@ public class VersionUpdater {
 		}
 	}
 
-	private Map<Artifact, List<Dependency>> evaluateDirectArtifactDependencies(
-			List<LocalArtifact> reactorArtifacts) {
+	private Map<Artifact, List<Dependency>> evaluateDirectArtifactDependencies(List<LocalArtifact> reactorArtifacts) {
 
 		Map<Artifact, List<Dependency>> depsAndNeeders = new LinkedHashMap<Artifact, List<Dependency>>();
 
@@ -1098,14 +994,12 @@ public class VersionUpdater {
 			final File pomFile = artifact.getLocation();
 
 			try {
-				ProjectDocument o = ProjectDocument.Factory.parse(pomFile,
-						MavenXmlSupport.instance.createXmlOptions());
+				ProjectDocument o = ProjectDocument.Factory.parse(pomFile, MavenXmlSupport.instance.createXmlOptions());
 
 				Model project = o.getProject();
 				Dependencies dependencies = project.getDependencies();
 				if (dependencies != null) {
-					for (org.apache.maven.pom.x400.Dependency dep : dependencies
-							.getDependencyArray()) {
+					for (org.apache.maven.pom.x400.Dependency dep : dependencies.getDependencyArray()) {
 
 						String groupId = dep.getGroupId();
 						String artifactId = dep.getArtifactId();
@@ -1120,40 +1014,29 @@ public class VersionUpdater {
 						List<String> problems = new LinkedList<String>();
 
 						if (groupId.contains("$")) {
-							log.debug("Found variable in groupId: " + groupId
-									+ " -- project " + pomFile);
-							problems.add("Variable used in groupId (" + groupId
-									+ ")");
+							log.debug("Found variable in groupId: " + groupId + " -- project " + pomFile);
+							problems.add("Variable used in groupId (" + groupId + ")");
 						}
 						if (artifactId.contains("$")) {
-							log.debug("Found variable in artifactId: "
-									+ artifactId + " -- project " + pomFile);
-							problems.add("Variable used in artifactId ("
-									+ artifactId + ")");
+							log.debug("Found variable in artifactId: " + artifactId + " -- project " + pomFile);
+							problems.add("Variable used in artifactId (" + artifactId + ")");
 						}
 						if (version.contains("$")) {
-							log.debug("Found variable in version: " + version
-									+ " -- project " + pomFile);
-							problems.add("Variable used in version (" + version
-									+ ")");
+							log.debug("Found variable in version: " + version + " -- project " + pomFile);
+							problems.add("Variable used in version (" + version + ")");
 						}
 
 						List<String> exclusions = new LinkedList<String>();
 
-						if (dep.getExclusions() != null
-								&& dep.getExclusions().getExclusionArray() != null) {
-							for (Exclusion e : dep.getExclusions()
-									.getExclusionArray()) {
-								exclusions.add(e.getGroupId() + ":"
-										+ e.getArtifactId());
+						if (dep.getExclusions() != null && dep.getExclusions().getExclusionArray() != null) {
+							for (Exclusion e : dep.getExclusions().getExclusionArray()) {
+								exclusions.add(e.getGroupId() + ":" + e.getArtifactId());
 							}
 						}
 
-						Artifact depArtifact = new Artifact(vars
-								.expand(groupId), vars.expand(artifactId), vars
-								.expand(version), "jar");
-						Dependency dependency = new Dependency(depArtifact,
-								artifact, classifier, scope, systemPath,
+						Artifact depArtifact = new Artifact(vars.expand(groupId), vars.expand(artifactId),
+								vars.expand(version), "jar");
+						Dependency dependency = new Dependency(depArtifact, artifact, classifier, scope, systemPath,
 								exclusions);
 
 						for (String problem : problems) {
@@ -1171,17 +1054,13 @@ public class VersionUpdater {
 					}
 				}
 				if (project.getParent() != null) {
-					log
-							.warn("Maven projects with parents currently not fully supported!. Found one at: "
-									+ pomFile);
+					log.warn("Maven projects with parents currently not fully supported!. Found one at: " + pomFile);
 				}
 			} catch (XmlException e) {
-				log.error("Could not parse maven project: "
-						+ pomFile.getAbsolutePath(), e);
+				log.error("Could not parse maven project: " + pomFile.getAbsolutePath(), e);
 
 			} catch (IOException e) {
-				log.error("Could not parse maven project: "
-						+ pomFile.getAbsolutePath(), e);
+				log.error("Could not parse maven project: " + pomFile.getAbsolutePath(), e);
 
 			}
 
@@ -1194,8 +1073,7 @@ public class VersionUpdater {
 	 * @param reactorArtifacts
 	 * @return Map(dependency-key:List(Dependency))
 	 */
-	private Map<String, List<Dependency>> findDirectArtifactDependencies(
-			List<LocalArtifact> reactorArtifacts) {
+	private Map<String, List<Dependency>> findDirectArtifactDependencies(List<LocalArtifact> reactorArtifacts) {
 
 		Map<String, List<Dependency>> depsAndNeeders = new LinkedHashMap<String, List<Dependency>>();
 
@@ -1207,32 +1085,27 @@ public class VersionUpdater {
 			vars.addVar("project.version", artifact.getVersion());
 
 			try {
-				ProjectDocument o = ProjectDocument.Factory.parse(artifact
-						.getLocation(), MavenXmlSupport.instance
-						.createXmlOptions());
+				ProjectDocument o = ProjectDocument.Factory.parse(artifact.getLocation(),
+						MavenXmlSupport.instance.createXmlOptions());
 
 				Model project = o.getProject();
-				Map<String, List<Dependency>> result = MavenXmlSupport.instance
-						.readDirectDependencyFromLocalArtifact(artifact,
-								project);
+				Map<String, List<Dependency>> result = MavenXmlSupport.instance.readDirectDependencyFromLocalArtifact(
+						artifact, project);
 				for (Entry<String, List<Dependency>> e : result.entrySet()) {
 					if (depsAndNeeders.containsKey(e.getKey())) {
 						// All our deps to the existing list
 						List<Dependency> deps = depsAndNeeders.get(e.getKey());
 						deps.addAll(e.getValue());
 					} else {
-						depsAndNeeders.put(e.getKey(),
-								new LinkedList<Dependency>(e.getValue()));
+						depsAndNeeders.put(e.getKey(), new LinkedList<Dependency>(e.getValue()));
 					}
 				}
 
 			} catch (XmlException e) {
-				log.error("Could not parse maven project: "
-						+ artifact.getLocation().getAbsolutePath(), e);
+				log.error("Could not parse maven project: " + artifact.getLocation().getAbsolutePath(), e);
 
 			} catch (IOException e) {
-				log.error("Could not parse maven project: "
-						+ artifact.getLocation().getAbsolutePath(), e);
+				log.error("Could not parse maven project: " + artifact.getLocation().getAbsolutePath(), e);
 			}
 
 		}
@@ -1240,8 +1113,7 @@ public class VersionUpdater {
 		return depsAndNeeders;
 	}
 
-	private Map<String, List<LocalArtifact>> buildArtifactMultiMap(
-			Collection<LocalArtifact> artifacts) {
+	private Map<String, List<LocalArtifact>> buildArtifactMultiMap(Collection<LocalArtifact> artifacts) {
 		LinkedHashMap<String, List<LocalArtifact>> map = new LinkedHashMap<String, List<LocalArtifact>>();
 		for (LocalArtifact artifact : artifacts) {
 			String key = artifact.getGroup() + ":" + artifact.getArtifact();
@@ -1257,13 +1129,10 @@ public class VersionUpdater {
 		return map;
 	}
 
-	private Map<String, List<LocalArtifact>> buildDependencyMultiMap(
-			Map<Artifact, List<Dependency>> dependencies) {
+	private Map<String, List<LocalArtifact>> buildDependencyMultiMap(Map<Artifact, List<Dependency>> dependencies) {
 		LinkedHashMap<String, List<LocalArtifact>> map = new LinkedHashMap<String, List<LocalArtifact>>();
-		for (Entry<Artifact, List<Dependency>> depEntry : dependencies
-				.entrySet()) {
-			String key = depEntry.getKey().getGroup() + ":"
-					+ depEntry.getKey().getArtifact();
+		for (Entry<Artifact, List<Dependency>> depEntry : dependencies.entrySet()) {
+			String key = depEntry.getKey().getGroup() + ":" + depEntry.getKey().getArtifact();
 			for (Dependency artifact : depEntry.getValue()) {
 				List<LocalArtifact> values;
 				if (map.containsKey(key)) {
@@ -1284,9 +1153,7 @@ public class VersionUpdater {
 		for (LocalArtifact artifact : artifacts) {
 			String key = artifact.getGroup() + ":" + artifact.getArtifact();
 			if (packageNames.contains(key)) {
-				throw new RuntimeException(
-						"Duplicate group:artifact pair found in reactor: "
-								+ key);
+				throw new RuntimeException("Duplicate group:artifact pair found in reactor: " + key);
 			}
 			packageNames.add(key);
 		}
@@ -1315,28 +1182,23 @@ public class VersionUpdater {
 			}
 
 			try {
-				ProjectDocument o = ProjectDocument.Factory.parse(pomFile,
-						MavenXmlSupport.instance.createXmlOptions());
+				ProjectDocument o = ProjectDocument.Factory.parse(pomFile, MavenXmlSupport.instance.createXmlOptions());
 
 				Model project = o.getProject();
-				LocalArtifact artifact = MavenXmlSupport.instance
-						.readLocalArtifactFromProject(project, pomFile);
+				LocalArtifact artifact = MavenXmlSupport.instance.readLocalArtifactFromProject(project, pomFile);
 				artifacts.add(artifact);
 
 				Modules modules = project.getModules();
 				if (modules != null) {
 					for (String module : modules.getModuleArray()) {
-						artifacts.addAll(scanReactorArtifacts(new File(dir,
-								module).getPath()));
+						artifacts.addAll(scanReactorArtifacts(new File(dir, module).getPath()));
 					}
 				}
 
 			} catch (XmlException e) {
-				log.error("Could not parse maven project: "
-						+ pomFile.getAbsolutePath(), e);
+				log.error("Could not parse maven project: " + pomFile.getAbsolutePath(), e);
 			} catch (IOException e) {
-				log.error("Could not parse maven project: "
-						+ pomFile.getAbsolutePath(), e);
+				log.error("Could not parse maven project: " + pomFile.getAbsolutePath(), e);
 			}
 		}
 
@@ -1349,21 +1211,18 @@ public class VersionUpdater {
 
 		File file = new File(pomFile);
 		if (!file.exists() || !file.isFile()) {
-			log.error("Maven project file does not exists: "
-					+ file.getAbsolutePath());
+			log.error("Maven project file does not exists: " + file.getAbsolutePath());
 			return deps;
 		}
 
 		try {
-			ProjectDocument o = ProjectDocument.Factory.parse(file,
-					MavenXmlSupport.instance.createXmlOptions());
+			ProjectDocument o = ProjectDocument.Factory.parse(file, MavenXmlSupport.instance.createXmlOptions());
 
 			Model project = o.getProject();
-			Map<String, List<Dependency>> depsAndDependants = MavenXmlSupport.instance
-					.readDirectDependencyFromProject(project, file);
+			Map<String, List<Dependency>> depsAndDependants = MavenXmlSupport.instance.readDirectDependencyFromProject(
+					project, file);
 
-			for (Entry<String, List<Dependency>> e : depsAndDependants
-					.entrySet()) {
+			for (Entry<String, List<Dependency>> e : depsAndDependants.entrySet()) {
 				for (Dependency dep : e.getValue()) {
 					if (!deps.contains(dep.getDependencyArtifact())) {
 						deps.add(dep);

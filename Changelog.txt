@@ -1,5 +1,7 @@
 Changelog of maven-version-updater
 
+- Removed dependency to cmdoption and replaced it with JCommander.
+
 maven-version-updater 0.1.0
 - Use of new annotation-based commandline parser
 - mvu: Initial support for plugin version management 
