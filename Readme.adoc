@@ -160,13 +160,8 @@ user@dev ~/work $ mvu --detect-local-version-mismatch
 * No support for xxxManagement-sections like `dependencyManagement` or `pluginsManagement`
 
 
-
-
 Most of these limitation are by purpose, as they belong to maven features which itselfs make reliable and reproducable build hard.
 
-\section{Terms of use (License)}
+== Licence
 
-The decision which license to use for the source code is not made yet. 
-
-You are free to use the released binary jar for your own projects at no charge. Redistribution or selling is not allowed.
-\end{document}
+This project is licensed under the http://www.apache.org/licenses/LICENSE-2.0.txt[Apache License, Version 2].
