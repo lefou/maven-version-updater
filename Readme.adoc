@@ -5,7 +5,7 @@
 :toc:
 :toc-placement: preamble
 
-This Handbook describes {mvu} in version {mvu-version}.
+This describes {mvu} in version {mvu-version}.
 
 == Features
 
