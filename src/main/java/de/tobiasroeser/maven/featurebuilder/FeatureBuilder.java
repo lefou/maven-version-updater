@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.channels.FileChannel;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -32,22 +31,21 @@ import org.apache.xmlbeans.XmlException;
 import org.apache.xmlbeans.XmlObject;
 import org.apache.xmlbeans.XmlOptions;
 
-import com.beust.jcommander.JCommander;
-import com.beust.jcommander.Parameter;
-
-import de.tobiasroeser.maven.shared.JCommanderSupport;
 import de.tobiasroeser.maven.shared.MavenXmlSupport;
 import de.tobiasroeser.maven.versionupdater.LocalArtifact;
+import de.tototec.cmdoption.CmdOption;
+import de.tototec.cmdoption.CmdlineParser;
+import de.tototec.cmdoption.CmdlineParserException;
 
 public class FeatureBuilder {
 
 	private final Log log = LogFactory.getLog(FeatureBuilder.class);
 
-	public static void main(String[] args) {
+	public static void main(final String[] args) {
 		try {
-			int status = new FeatureBuilder().run(args);
+			final int status = new FeatureBuilder().run(args);
 			System.exit(status);
-		} catch (Throwable t) {
+		} catch (final Throwable t) {
 			LogFactory.getLog(FeatureBuilder.class).error("Caught an exception.", t);
 			System.exit(1);
 		}
@@ -55,51 +53,59 @@ public class FeatureBuilder {
 
 	public static class Config {
 
-		@Parameter(names = { "--help", "-h" }, description = "Show this help")
+		@CmdOption(names = { "--help", "-h" }, description = "Show this help")
 		public boolean showHelp = false;
 
-		@Parameter(names = "--use-pom", description = "EXPERIMENTAL: Use a maven project PAR file to read feature name, version and dependencies.")
+		@CmdOption(names = "--use-pom", args = { "FILE" },
+				description = "EXPERIMENTAL: Use a maven project {0} file to read feature name, version and dependencies.")
 		public String pomFile;
 
-		@Parameter(names = "--createFeatureXml", description = "Create a feature xml file PAR")
+		@CmdOption(names = "--createFeatureXml", args = { "FILE" }, description = "Create a feature xml file {0}")
 		public String createFeatureXml;
 
-		@Parameter(names = "--feature-id", description = "Feature ID")
+		@CmdOption(names = "--feature-id", args = { "ID" }, description = "Feature {0}")
 		public String symbolicName;
 
-		@Parameter(names = "--feature-version", description = "Feature version")
+		@CmdOption(names = "--feature-version", args = { "VERSION" }, description = "Feature version")
 		public String version;
 
-		@Parameter(names = "--scan-jars", description = "Scan directory PAR for jars and extract bundle information (used to build the feature)")
+		@CmdOption(names = "--scan-jars", args = { "DIR" },
+				description = "Scan directory {0} for jars and extract bundle information (used to build the feature)")
 		public String scanJarsAtDir;
 
-		@Parameter(names = "--update-feature-xml", description = "Update a feature xml file PAR")
+		@CmdOption(names = "--update-feature-xml", args = { "FILE" }, description = "Update a feature xml file {0}")
 		public String updateFeatureXml;
 
-		@Parameter(names = "--template-xml", description = "The feature.xml template PAR file (optional for ${updateFeatureXml})")
+		@CmdOption(names = "--template-xml", args = { "FILE" },
+				description = "The feature.xml template {0} file (optional for --update-feature-xml)")
 		public String updateFeatureXmlTemplate;
 
-		@Parameter(names = "--copy-jars-as-bundles", description = "Copy found jars (via ${scanJarsAtDir}) option) with their bundle name to directory PAR")
+		@CmdOption(names = "--copy-jars-as-bundles", args = { "DIR" },
+				description = "Copy found jars (via --scan-jars option) with their bundle name to directory {0}")
 		public String copyJarsAsBundlesTo;
 
 		/** Map(feature-id,new-version) */
-		@Parameter(names = "-update-included-feature-version", description = "Update the version of an included feature PAR1 to version PAR2", arity = 2)
-		public final List<String> updateIncludedFeatureVersion = new LinkedList<String>();
+		@CmdOption(names = "--update-included-feature-version", args = { "FEATURE", "VERSION" },
+				description = "Update the version of an included feature {0} to version {1}")
+		public final Map<String, String> updateIncludedFeatureVersion = new LinkedHashMap<String, String>();
 
 		/** List(feature-id) */
-		@Parameter(names = "--update-included-feature", description = "Update the version of an included feature PAR. The version of feature PAR will be autodetected but requires the use of ${scanJarsAtDir}. Feature jars need the MANIFEST.MF entries 'FeatureBuilder-FeatureId' and 'FeatureBuilder-FeatureVersion'")
+		@CmdOption(names = "--update-included-feature", args = { "FEATURE" },
+				description = "Update the version of an included feature {0}. The version of feature PAR will be autodetected but requires the use of --scan-jars. Feature jars need the MANIFEST.MF entries 'FeatureBuilder-FeatureId' and 'FeatureBuilder-FeatureVersion'")
 		public final List<String> updateIncludedFeature = new LinkedList<String>();
 
-		@Parameter(names = "--jar-feature", description = "Create a feature jar to directory PAR")
+		@CmdOption(names = "--jar-feature", args = { "DIR" }, description = "Create a feature jar to directory {0}")
 		public String jarFeatureTo;
 
 		public List<String> validate() {
-			List<String> errors = new LinkedList<String>();
+			final List<String> errors = new LinkedList<String>();
 			int count = 0;
-			if (createFeatureXml != null)
+			if (createFeatureXml != null) {
 				++count;
-			if (updateFeatureXml != null)
+			}
+			if (updateFeatureXml != null) {
 				++count;
+			}
 
 			if (count == 0) {
 				errors.add("No feature.xml creation/modification method given.");
@@ -112,20 +118,26 @@ public class FeatureBuilder {
 		}
 	}
 
-	private int run(String[] params) {
-		Config config = new Config();
-		JCommander jc = new JCommander(config);
+	private int run(final String[] params) {
+		final Config config = new Config();
+		final CmdlineParser cp = new CmdlineParser(config);
+		try {
+			cp.parse(params);
+		} catch (final CmdlineParserException e) {
+			System.err.println(e.getMessage());
+			return 1;
+		}
 		if (config.showHelp) {
-			jc.usage();
+			cp.usage();
 			return 0;
 		}
 		return run(config);
 	}
 
-	public int run(Config config) {
+	public int run(final Config config) {
 
 		try {
-			List<Bundle> bundles = new LinkedList<Bundle>();
+			final List<Bundle> bundles = new LinkedList<Bundle>();
 
 			if (config.pomFile != null) {
 				readPom(config.pomFile);
@@ -138,14 +150,14 @@ public class FeatureBuilder {
 				bundles.addAll(scannedBundles);
 
 				if (config.updateIncludedFeature.size() > 0) {
-					Map<String, String> scanFeatureVersionsAtDir = scanFeatureVersionsAtDir(config.scanJarsAtDir);
+					final Map<String, String> scanFeatureVersionsAtDir = scanFeatureVersionsAtDir(config.scanJarsAtDir);
 					log.info("Scanned " + scanFeatureVersionsAtDir.size() + " features in jar dir: "
 							+ config.scanJarsAtDir);
-					for (String featureId : config.updateIncludedFeature) {
+					for (final String featureId : config.updateIncludedFeature) {
 						if (scanFeatureVersionsAtDir.containsKey(featureId)) {
-							String version = scanFeatureVersionsAtDir.get(featureId);
+							final String version = scanFeatureVersionsAtDir.get(featureId);
 							log.info("Scanned feature id '" + featureId + "' with version '" + version + "'");
-							config.updateIncludedFeatureVersion.addAll(Arrays.asList(featureId, version));
+							config.updateIncludedFeatureVersion.put(featureId, version);
 						} else {
 							log.warn("Could not scan feature id: " + featureId);
 						}
@@ -164,7 +176,7 @@ public class FeatureBuilder {
 
 			if (config.updateFeatureXml != null) {
 				updateFeatureXml(config.updateFeatureXml, config.updateFeatureXmlTemplate, config.symbolicName,
-						config.version, JCommanderSupport.toMap(config.updateIncludedFeatureVersion), bundles);
+						config.version, config.updateIncludedFeatureVersion, bundles);
 			}
 
 			if (config.copyJarsAsBundlesTo != null && scannedBundles != null) {
@@ -177,32 +189,32 @@ public class FeatureBuilder {
 						config.jarFeatureTo);
 			}
 
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			log.error("Errors occured", e);
 			return 1;
 		}
 		return 0;
 	}
 
-	private boolean createFeatureJar(String featureId, String featureVersion, String featureXml, String jarDir) {
+	private boolean createFeatureJar(final String featureId, final String featureVersion, final String featureXml, final String jarDir) {
 
-		File file = new File(jarDir, featureId + "_" + featureVersion + ".jar");
+		final File file = new File(jarDir, featureId + "_" + featureVersion + ".jar");
 		file.getParentFile().mkdirs();
 
 		try {
-			JarOutputStream jarOutputStream = new JarOutputStream(new BufferedOutputStream(new FileOutputStream(file)));
+			final JarOutputStream jarOutputStream = new JarOutputStream(new BufferedOutputStream(new FileOutputStream(file)));
 
-			JarEntry entry = new JarEntry("feature.xml");
+			final JarEntry entry = new JarEntry("feature.xml");
 			jarOutputStream.putNextEntry(entry);
 
-			BufferedInputStream featureXmlStream = new BufferedInputStream(new FileInputStream(featureXml));
+			final BufferedInputStream featureXmlStream = new BufferedInputStream(new FileInputStream(featureXml));
 			copy(featureXmlStream, jarOutputStream);
 
 			jarOutputStream.close();
 
-		} catch (FileNotFoundException e) {
+		} catch (final FileNotFoundException e) {
 			throw new RuntimeException("Could not create Feature Jar: " + file.getAbsolutePath(), e);
-		} catch (IOException e) {
+		} catch (final IOException e) {
 			throw new RuntimeException("Could not create Feature Jar: " + file.getAbsolutePath(), e);
 		}
 
@@ -211,7 +223,7 @@ public class FeatureBuilder {
 
 	protected void copy(final InputStream in, final OutputStream out) {
 		try {
-			byte[] buf = new byte[1024];
+			final byte[] buf = new byte[1024];
 			int len;
 			while ((len = in.read(buf)) > 0) {
 				out.write(buf, 0, len);
@@ -221,9 +233,9 @@ public class FeatureBuilder {
 		}
 	}
 
-	private void copyJarsAsBundles(List<Bundle> bundles, String copyJarsAsBundlesTo) {
+	private void copyJarsAsBundles(final List<Bundle> bundles, final String copyJarsAsBundlesTo) {
 
-		File dir = new File(copyJarsAsBundlesTo);
+		final File dir = new File(copyJarsAsBundlesTo);
 		if (dir.exists()) {
 			if (!dir.isDirectory()) {
 				log.error(dir.getAbsolutePath() + " is not a directory.");
@@ -235,8 +247,8 @@ public class FeatureBuilder {
 
 		log.info("Copying " + bundles.size() + " bundles into: " + dir.getAbsolutePath());
 
-		for (Bundle bundle : bundles) {
-			File target = new File(dir, bundle.getSymbolicName() + "_" + bundle.getVersion() + ".jar");
+		for (final Bundle bundle : bundles) {
+			final File target = new File(dir, bundle.getSymbolicName() + "_" + bundle.getVersion() + ".jar");
 
 			FileChannel in = null;
 			FileChannel out = null;
@@ -249,14 +261,14 @@ public class FeatureBuilder {
 				// http://www.rgagnon.com/javadetails/java-0064.html
 				// we cannot copy files greater than 64 MB.
 				// magic number for Windows, 64Mb - 32Kb)
-				int maxCount = (64 * 1024 * 1024) - (32 * 1024);
-				long size = in.size();
+				final int maxCount = (64 * 1024 * 1024) - (32 * 1024);
+				final long size = in.size();
 				long position = 0;
 				while (position < size) {
 					position += in.transferTo(position, maxCount, out);
 				}
 
-			} catch (IOException e) {
+			} catch (final IOException e) {
 				log.error(
 						"Error whily copying '" + bundle.getJarLocation().getAbsolutePath() + "' to '"
 								+ target.getAbsolutePath() + "'", e);
@@ -269,7 +281,7 @@ public class FeatureBuilder {
 					if (out != null) {
 						out.close();
 					}
-				} catch (IOException e) {
+				} catch (final IOException e) {
 					throw new RuntimeException("Could not recover from error.", e);
 				}
 			}
@@ -280,30 +292,30 @@ public class FeatureBuilder {
 	 * @param scanJarsAtDir
 	 * @return A Map(featureId -> featureVersion)
 	 */
-	public Map<String, String> scanFeatureVersionsAtDir(String scanJarsAtDir) {
-		Map<String, String> featureVersions = new LinkedHashMap<String, String>();
+	public Map<String, String> scanFeatureVersionsAtDir(final String scanJarsAtDir) {
+		final Map<String, String> featureVersions = new LinkedHashMap<String, String>();
 
-		File file = new File(scanJarsAtDir);
+		final File file = new File(scanJarsAtDir);
 		if (!file.exists() || !file.isDirectory()) {
 			log.error("Directory '" + file.getAbsolutePath() + "' does not exists.");
 			return featureVersions;
 		}
 
-		for (File jar : file.listFiles()) {
+		for (final File jar : file.listFiles()) {
 			if (jar.isFile() && jar.getName().toLowerCase().endsWith(".jar")) {
 				try {
-					JarInputStream jarStream = new JarInputStream(new BufferedInputStream(new FileInputStream(jar)));
-					Manifest manifest = jarStream.getManifest();
-					String featureId = manifest.getMainAttributes().getValue("FeatureBuilder-FeatureId");
-					String featureVersion = manifest.getMainAttributes().getValue("FeatureBuilder-FeatureVersion");
+					final JarInputStream jarStream = new JarInputStream(new BufferedInputStream(new FileInputStream(jar)));
+					final Manifest manifest = jarStream.getManifest();
+					final String featureId = manifest.getMainAttributes().getValue("FeatureBuilder-FeatureId");
+					final String featureVersion = manifest.getMainAttributes().getValue("FeatureBuilder-FeatureVersion");
 
 					if (featureId != null && featureVersion != null) {
 						featureVersions.put(featureId, featureVersion);
 					}
 
-				} catch (FileNotFoundException e) {
+				} catch (final FileNotFoundException e) {
 					log.error("Errors while reading the Mainfest of: " + jar, e);
-				} catch (IOException e) {
+				} catch (final IOException e) {
 					log.error("Errors while reading the Mainfest of: " + jar, e);
 				}
 			}
@@ -311,34 +323,34 @@ public class FeatureBuilder {
 		return featureVersions;
 	}
 
-	public List<Bundle> scanBundlesAtDir(String scanJarsAtDir) {
-		File file = new File(scanJarsAtDir);
+	public List<Bundle> scanBundlesAtDir(final String scanJarsAtDir) {
+		final File file = new File(scanJarsAtDir);
 
-		LinkedList<Bundle> bundles = new LinkedList<Bundle>();
+		final LinkedList<Bundle> bundles = new LinkedList<Bundle>();
 
 		if (!file.exists() || !file.isDirectory()) {
 			log.error("Directory '" + file.getAbsolutePath() + "' does not exists.");
 			return bundles;
 		}
 
-		for (File jar : file.listFiles()) {
+		for (final File jar : file.listFiles()) {
 			if (jar.isFile() && jar.getName().toLowerCase().endsWith(".jar")) {
 				try {
-					JarInputStream jarStream = new JarInputStream(new BufferedInputStream(new FileInputStream(jar)));
-					Manifest manifest = jarStream.getManifest();
+					final JarInputStream jarStream = new JarInputStream(new BufferedInputStream(new FileInputStream(jar)));
+					final Manifest manifest = jarStream.getManifest();
 					String symbolicName = manifest.getMainAttributes().getValue("Bundle-SymbolicName");
-					String version = manifest.getMainAttributes().getValue("Bundle-Version");
+					final String version = manifest.getMainAttributes().getValue("Bundle-Version");
 					if (symbolicName != null && version != null) {
 						symbolicName = symbolicName.split(";")[0].trim();
-						Bundle bundle = new Bundle(symbolicName, version, jar.length(), jar);
+						final Bundle bundle = new Bundle(symbolicName, version, jar.length(), jar);
 						bundles.add(bundle);
 					} else {
 						log.warn("jar '" + jar.getAbsolutePath() + "' is not an OSGi bundle.");
 					}
 
-				} catch (FileNotFoundException e) {
+				} catch (final FileNotFoundException e) {
 					log.error("Errors while reading the Mainfest of: " + jar, e);
-				} catch (IOException e) {
+				} catch (final IOException e) {
 					log.error("Errors while reading the Mainfest of: " + jar, e);
 				}
 
@@ -350,14 +362,14 @@ public class FeatureBuilder {
 		return bundles;
 	}
 
-	private void createFeatureXml(String fileName, String symbolicName, String version, List<Bundle> bundles) {
+	private void createFeatureXml(final String fileName, final String symbolicName, final String version, final List<Bundle> bundles) {
 
 		if (fileName == null || symbolicName == null || version == null || bundles == null) {
 			throw new IllegalArgumentException("All parameters must be not null.");
 		}
 
-		XmlObject xml = XmlObject.Factory.newInstance();
-		XmlCursor cursor = xml.newCursor();
+		final XmlObject xml = XmlObject.Factory.newInstance();
+		final XmlCursor cursor = xml.newCursor();
 
 		cursor.toFirstContentToken();
 		cursor.beginElement("feature");
@@ -390,7 +402,7 @@ public class FeatureBuilder {
 		cursor.toNextToken();
 		cursor.toNextToken();
 
-		for (Bundle bundle : bundles) {
+		for (final Bundle bundle : bundles) {
 			insertBundle(cursor, bundle);
 		}
 		cursor.insertChars("\n");
@@ -398,18 +410,18 @@ public class FeatureBuilder {
 		cursor.dispose();
 		log.debug("Created document: " + xml.xmlText());
 
-		File file = new File(fileName);
+		final File file = new File(fileName);
 		log.info("Writing document to: " + file.getAbsolutePath());
 
 		try {
 			xml.save(file);
-		} catch (IOException e) {
+		} catch (final IOException e) {
 			log.error("Could not save feature file: " + file.getAbsolutePath(), e);
 		}
 
 	}
 
-	private void insertBundle(XmlCursor cursor, Bundle bundle) {
+	private void insertBundle(final XmlCursor cursor, final Bundle bundle) {
 		cursor.insertChars("\n\t");
 		cursor.beginElement("plugin");
 		cursor.insertAttributeWithValue("id", bundle.getSymbolicName());
@@ -420,8 +432,8 @@ public class FeatureBuilder {
 		cursor.toNextToken();
 	}
 
-	private void updateFeatureXml(String fileName, String templateFile, String symbolicName, String version,
-			Map<String, String> includedFeatureVersions, List<Bundle> bundles) {
+	private void updateFeatureXml(final String fileName, final String templateFile, final String symbolicName, final String version,
+			final Map<String, String> includedFeatureVersions, final List<Bundle> bundles) {
 
 		File tFile = null;
 		if (templateFile != null) {
@@ -431,7 +443,7 @@ public class FeatureBuilder {
 			}
 		}
 
-		File file = new File(fileName);
+		final File file = new File(fileName);
 		if (tFile == null) {
 			if (!file.exists() || !file.isFile()) {
 				log.error("Cannot update not existing feature file: " + file.getAbsolutePath());
@@ -440,7 +452,7 @@ public class FeatureBuilder {
 		}
 
 		try {
-			XmlObject xml = XmlObject.Factory.parse(tFile);
+			final XmlObject xml = XmlObject.Factory.parse(tFile);
 			XmlCursor pC = xml.newCursor();
 
 			// remove existing plugin entries
@@ -458,13 +470,13 @@ public class FeatureBuilder {
 			pC.toFirstContentToken();
 
 			// new entries
-			for (Bundle bundle : bundles) {
+			for (final Bundle bundle : bundles) {
 				insertBundle(pC, bundle);
 			}
 
 			pC.dispose();
 
-			XmlCursor tester = xml.newCursor();
+			final XmlCursor tester = xml.newCursor();
 			tester.selectPath("$this/feature/plugin");
 			if (tester.getSelectionCount() > bundles.size()) {
 				log.warn("At least " + (tester.getSelectionCount() - bundles.size())
@@ -474,13 +486,13 @@ public class FeatureBuilder {
 
 			// Update feature id if necessary
 			if (symbolicName != null) {
-				XmlCursor idCursor = xml.newCursor();
+				final XmlCursor idCursor = xml.newCursor();
 				idCursor.selectPath("$this/feature");
 				if (idCursor.getSelectionCount() == 0) {
 					log.warn("Could not found feature entry.");
 				} else {
 					idCursor.toSelection(0);
-					String curId = idCursor.getAttributeText(new QName("id"));
+					final String curId = idCursor.getAttributeText(new QName("id"));
 					if (!symbolicName.equals(curId)) {
 						idCursor.setAttributeText(new QName("id"), symbolicName);
 					}
@@ -490,13 +502,13 @@ public class FeatureBuilder {
 
 			// Update feature version if necessary
 			if (version != null) {
-				XmlCursor versionCursor = xml.newCursor();
+				final XmlCursor versionCursor = xml.newCursor();
 				versionCursor.selectPath("$this/feature");
 				if (versionCursor.getSelectionCount() == 0) {
 					log.warn("Could not found feature entry.");
 				} else {
 					versionCursor.toSelection(0);
-					String curVersion = versionCursor.getAttributeText(new QName("version"));
+					final String curVersion = versionCursor.getAttributeText(new QName("version"));
 					if (!version.equals(curVersion)) {
 						versionCursor.setAttributeText(new QName("version"), version);
 					}
@@ -506,14 +518,14 @@ public class FeatureBuilder {
 
 			// Update versions of included features
 			if (includedFeatureVersions.size() > 0) {
-				XmlCursor includesCursor = xml.newCursor();
+				final XmlCursor includesCursor = xml.newCursor();
 				includesCursor.selectPath("$this/feature/includes");
 				if (includesCursor.getSelectionCount() < includedFeatureVersions.size()) {
 					log.warn("Could not found some of the requested included features.");
 				} else {
 					for (int i = 0; i < includedFeatureVersions.size(); ++i) {
 						includesCursor.toSelection(i);
-						String id = includesCursor.getAttributeText(new QName("id"));
+						final String id = includesCursor.getAttributeText(new QName("id"));
 						if (includedFeatureVersions.containsKey(id)) {
 							includesCursor.setAttributeText(new QName("version"), includedFeatureVersions.get(id));
 						}
@@ -524,28 +536,28 @@ public class FeatureBuilder {
 			log.info("Modifying feature file: " + file.getAbsolutePath());
 			xml.save(file, new XmlOptions().setSavePrettyPrint().setSavePrettyPrintIndent(2));
 
-		} catch (XmlException e) {
+		} catch (final XmlException e) {
 			log.error("Could not modify feature description: " + file.getAbsolutePath(), e);
-		} catch (IOException e) {
+		} catch (final IOException e) {
 			log.error("Could not modify feature description: " + file.getAbsolutePath(), e);
 		}
 	}
 
-	private List<Bundle> readPom(String pomFile) {
+	private List<Bundle> readPom(final String pomFile) {
 
-		LinkedList<Bundle> bundles = new LinkedList<Bundle>();
+		final LinkedList<Bundle> bundles = new LinkedList<Bundle>();
 
-		File file = new File(pomFile);
+		final File file = new File(pomFile);
 		if (!file.exists() || !file.isFile()) {
 			log.error("Maven project file does not exists: " + file.getAbsolutePath());
 			return bundles;
 		}
 
 		try {
-			ProjectDocument o = ProjectDocument.Factory.parse(file, MavenXmlSupport.instance.createXmlOptions());
+			final ProjectDocument o = ProjectDocument.Factory.parse(file, MavenXmlSupport.instance.createXmlOptions());
 
-			Model project = o.getProject();
-			LocalArtifact localArtifact = MavenXmlSupport.instance.readLocalArtifactFromProject(project, file);
+			final Model project = o.getProject();
+			final LocalArtifact localArtifact = MavenXmlSupport.instance.readLocalArtifactFromProject(project, file);
 
 			log.debug("Analyzing Maven project: " + localArtifact);
 
@@ -557,10 +569,10 @@ public class FeatureBuilder {
 
 			return bundles;
 
-		} catch (XmlException e) {
+		} catch (final XmlException e) {
 			log.error("Could not read pom file: " + file.getAbsolutePath(), e);
 			return bundles;
-		} catch (IOException e) {
+		} catch (final IOException e) {
 			log.error("Could not read pom file: " + file.getAbsolutePath(), e);
 			return bundles;
 		}

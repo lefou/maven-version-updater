@@ -2,8 +2,7 @@ package de.tobiasroeser.maven.updatesitebuilder;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import javax.xml.namespace.QName;
@@ -15,33 +14,32 @@ import org.apache.xmlbeans.XmlException;
 import org.apache.xmlbeans.XmlObject;
 import org.apache.xmlbeans.XmlOptions;
 
-import com.beust.jcommander.JCommander;
-import com.beust.jcommander.Parameter;
-
-import de.tobiasroeser.maven.shared.JCommanderSupport;
+import de.tototec.cmdoption.CmdOption;
+import de.tototec.cmdoption.CmdlineParser;
+import de.tototec.cmdoption.CmdlineParserException;
 
 public class UpdateSiteBuilder {
 
 	private final Log log = LogFactory.getLog(UpdateSiteBuilder.class);
 
-	public static void main(String[] args) {
+	public static void main(final String[] args) {
 		try {
 			final int status = new UpdateSiteBuilder().run(args);
 			System.exit(status);
-		} catch (Throwable t) {
+		} catch (final Throwable t) {
 			LogFactory.getLog(UpdateSiteBuilder.class).error("Caught an exception.", t);
 			System.exit(1);
 		}
 	}
 
 	public static class Config {
-		@Parameter(names = { "--help", "-h" }, description = "Show this help")
+		@CmdOption(names = { "--help", "-h" }, description = "Show this help")
 		public boolean showHelp = false;
 
-		@Parameter(names = "--site-xml", description = "The site.xml file to generateor update.")
+		@CmdOption(names = "--site-xml", args = { "FILE" }, description = "The site.xml file to generate or update.")
 		public String siteXmlFile = "site.xml";
 
-		@Parameter(names = "--template-xml", description = "The template used when creating the site file.")
+		@CmdOption(names = "--template-xml", args = { "FILE" }, description = "The template used when creating the site file.")
 		public String siteXmlTemplate;
 
 		// /** Map(project-key -> feature-id) */
@@ -51,38 +49,43 @@ public class UpdateSiteBuilder {
 		// public final List<String> projectFeatureMapping = new
 		// LinkedList<String>();
 
-		@Parameter(names = "--feature-versions", description = "Update/bump feature id PAR1 to version PAR2", arity = 2)
-		public final List<String> featureVersions = new LinkedList<String>();
+		@CmdOption(names = "--feature-versions", args = { "ID", "VERSION" }, description = "Update/bump feature id {0} to version {1}")
+		public final Map<String, String> featureVersions = new LinkedHashMap<String, String>();
 
 	}
 
-	private int run(String[] params) {
+	private int run(final String[] params) {
 		final Config config = new Config();
 
-		JCommander jc = new JCommander(config);
-		jc.parse(params);
+		final CmdlineParser cp = new CmdlineParser(config);
+		try {
+			cp.parse(params);
+		} catch (final CmdlineParserException e) {
+			System.err.println(e.getMessage());
+			return 1;
+		}
 		if (config.showHelp) {
-			jc.usage();
+			cp.usage();
 			return 0;
 		}
 		return run(config);
 	}
 
-	public int run(Config config) {
+	public int run(final Config config) {
 		try {
 
 			if (config.siteXmlFile != null && config.featureVersions.size() > 0) {
-				updateSiteXml(config.siteXmlFile, config.siteXmlTemplate, JCommanderSupport.toMap(config.featureVersions));
+				updateSiteXml(config.siteXmlFile, config.siteXmlTemplate, config.featureVersions);
 			}
 
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			log.error("Errors occured", e);
 			return 1;
 		}
 		return 0;
 	}
 
-	public boolean updateSiteXml(String siteXmlFile, String siteXmlTemplate, Map<String, String> featureVersions) {
+	public boolean updateSiteXml(final String siteXmlFile, final String siteXmlTemplate, final Map<String, String> featureVersions) {
 
 		File tFile = null;
 		if (siteXmlTemplate != null) {
@@ -93,7 +96,7 @@ public class UpdateSiteBuilder {
 			}
 		}
 
-		File file = new File(siteXmlFile);
+		final File file = new File(siteXmlFile);
 		if (tFile == null) {
 			if (!file.exists() || !file.isFile()) {
 				log.error("Cannot update not existing site file: " + file.getAbsolutePath());
@@ -108,8 +111,8 @@ public class UpdateSiteBuilder {
 		}
 
 		try {
-			XmlObject xml = XmlObject.Factory.parse(tFile);
-			XmlCursor cursor = xml.newCursor();
+			final XmlObject xml = XmlObject.Factory.parse(tFile);
+			final XmlCursor cursor = xml.newCursor();
 
 			cursor.selectPath("$this/site/feature");
 			for (int i = 0; i < cursor.getSelectionCount(); ++i) {
@@ -128,10 +131,10 @@ public class UpdateSiteBuilder {
 
 			xml.save(file, new XmlOptions().setSavePrettyPrint().setSavePrettyPrintIndent(2));
 
-		} catch (XmlException e) {
+		} catch (final XmlException e) {
 			log.error("Errors while processing xml file: " + file.getAbsolutePath(), e);
 			return false;
-		} catch (IOException e) {
+		} catch (final IOException e) {
 			log.error("Errors while xml file: " + file.getAbsolutePath(), e);
 			return false;
 		}
