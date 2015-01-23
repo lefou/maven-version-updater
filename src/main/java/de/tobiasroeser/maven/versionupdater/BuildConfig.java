@@ -8,7 +8,7 @@ public abstract class BuildConfig {
 	}
 
 	public static String mvuCopyright() {
-		return "(c) 2009-2011 by Tobias Roeser, All Rights Reserved.";
+		return "(c) 2009-2015 by Tobias Roeser, Apache License, Version 2";
 	}
 
 }
