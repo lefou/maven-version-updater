@@ -85,12 +85,12 @@ public class FeatureBuilder {
 		public String copyJarsAsBundlesTo;
 
 		/** Map(feature-id,new-version) */
-		@CmdOption(names = "--update-included-feature-version", args = { "FEATURE", "VERSION" },
+		@CmdOption(names = "--update-included-feature-version", args = { "FEATURE", "VERSION" }, maxCount = -1,
 				description = "Update the version of an included feature {0} to version {1}")
 		public final Map<String, String> updateIncludedFeatureVersion = new LinkedHashMap<String, String>();
 
 		/** List(feature-id) */
-		@CmdOption(names = "--update-included-feature", args = { "FEATURE" },
+		@CmdOption(names = "--update-included-feature", args = { "FEATURE" }, maxCount = -1,
 				description = "Update the version of an included feature {0}. The version of feature PAR will be autodetected but requires the use of --scan-jars. Feature jars need the MANIFEST.MF entries 'FeatureBuilder-FeatureId' and 'FeatureBuilder-FeatureVersion'")
 		public final List<String> updateIncludedFeature = new LinkedList<String>();
 

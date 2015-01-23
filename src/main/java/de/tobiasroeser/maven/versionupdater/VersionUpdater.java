@@ -82,10 +82,12 @@ public class VersionUpdater {
 		public final List<String> dirs = new LinkedList<String>();
 
 		/** List(artifact-key) */
-		@CmdOption(names = "--align-local-dep-version", args = { "PROJECT" }, description = "Sync version of dependants to local project {0} (supports --dryrun)")
+		@CmdOption(names = "--align-local-dep-version", args = { "PROJECT" }, maxCount = -1,
+				description = "Sync version of dependants to local project {0} (supports --dryrun)")
 		public final List<String> alignLocalDepVersion = new LinkedList<String>();
 		/** Map(dependency-key-with-version) */
-		@CmdOption(names = "--set-dep-version", args = { "PAR" }, description = "Updates the versions of all matching dependencies to dependencies {0} (supports --dryrun)")
+		@CmdOption(names = "--set-dep-version", args = { "PAR" }, maxCount = -1,
+				description = "Updates the versions of all matching dependencies to dependencies {0} (supports --dryrun)")
 		public final List<String> setDepVersions = new LinkedList<String>();
 
 		@CmdOption(names = "--exact", description = "When searching, only match exactly the same artifact keys")
@@ -99,30 +101,37 @@ public class VersionUpdater {
 
 		/** Map(file-to-write -> project) */
 		// TODO: write a converter
-		@CmdOption(names = "--extract-project-deps", args = { "PROJECT", "FILE" }, description = "Extract the project dependencies of the given project {0} and write them to file {1}")
+		@CmdOption(names = "--extract-project-deps", args = { "PROJECT", "FILE" }, maxCount = -1,
+				description = "Extract the project dependencies of the given project {0} and write them to file {1}")
 		public final Map<String, String> persistDeps = new LinkedHashMap<String, String>();
 
 		/** Map(file-to-read -> project-to-update) */
-		@CmdOption(names = "--apply-project-deps", args = { "PROJECT", "FILE" }, description = "Update the project {0} with the dependencies from file {1}")
+		@CmdOption(names = "--apply-project-deps", args = { "PROJECT", "FILE" }, maxCount = -1,
+				description = "Update the project {0} with the dependencies from file {1}")
 		public final Map<String, String> applyDeps = new LinkedHashMap<String, String>();
 
 		/** Map(old-dep -> new-dep) */
-		@CmdOption(names = "--replace-dependency", args = { "OLD", "NEW" }, description = "Replace dependency {0} by dependency {1}")
+		@CmdOption(names = "--replace-dependency", args = { "OLD", "NEW" }, maxCount = -1,
+				description = "Replace dependency {0} by dependency {1}")
 		public final Map<String, String> replaceDeps = new LinkedHashMap<String, String>();
 
 		/** Map(project -> dep-with-needs-excludes */
 		public final Map<String, String> generateExcludes = new HashMap<String, String>();
 
-		@CmdOption(names = "--update-artifact-version", args = { "ARTIFACT" }, description = "Update the version of the matching artifact to artifact {0} (supports --dryrun)")
+		@CmdOption(names = "--update-artifact-version", args = { "ARTIFACT" }, maxCount = -1,
+				description = "Update the version of the matching artifact to artifact {0} (supports --dryrun)")
 		public List<String> updateArtifactVersion = new LinkedList<String>();
 
-		@CmdOption(names = "--search-artifacts", args = { "PATTERN" }, description = "Search for artifact(s) with pattern {0} (supports --exact)")
+		@CmdOption(names = "--search-artifacts", args = { "PATTERN" }, maxCount = -1,
+				description = "Search for artifact(s) with pattern {0} (supports --exact)")
 		public List<String> searchArtifacts = new LinkedList<String>();
 
-		@CmdOption(names = "--search-dependencies", args = { "PATTERN" }, description = "Search for dependency(s) with pattern {0} (supports --exact})")
+		@CmdOption(names = "--search-dependencies", args = { "PATTERN" }, maxCount = -1,
+				description = "Search for dependency(s) with pattern {0} (supports --exact})")
 		public List<String> searchDependencies = new LinkedList<String>();
 
-		@CmdOption(names = "--update-artifact-and-dep-version", args = { "VERSION" }, description = "Update the artifact and all dependencies to that artifact to version {0} (same as --update-artifact-version and --set-dep-version used together)")
+		@CmdOption(names = "--update-artifact-and-dep-version", args = { "VERSION" }, maxCount = -1,
+				description = "Update the artifact and all dependencies to that artifact to version {0} (same as --update-artifact-version and --set-dep-version used together)")
 		public List<String> updateArtifactAndDepVersion = new LinkedList<String>();
 		// (String key) {
 		// updateArtifactVersion.add(key);
@@ -132,7 +141,8 @@ public class VersionUpdater {
 		@CmdOption(names = "--search-multi-version-deps", description = "Search dependecies, which are present with more to one version.")
 		public boolean searchMultiVersionDeps;
 
-		@CmdOption(names = "--search-plugins", args = { "PLUGIN" }, description = "Search Maven-plugin {0} and the using project.")
+		@CmdOption(names = "--search-plugins", args = { "PLUGIN" }, maxCount = -1,
+				description = "Search Maven-plugin {0} and the using project.")
 		public List<String> searchPlugins = new LinkedList<String>();
 
 		@CmdOption(names = { "--verbose", "-v" }, description = "Verbose output")
