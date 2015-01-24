@@ -49,7 +49,8 @@ public class UpdateSiteBuilder {
 		// public final List<String> projectFeatureMapping = new
 		// LinkedList<String>();
 
-		@CmdOption(names = "--feature-versions", args = { "ID", "VERSION" }, description = "Update/bump feature id {0} to version {1}")
+		@CmdOption(names = "--feature-versions", args = { "ID", "VERSION" }, maxCount = -1,
+				description = "Update/bump feature id {0} to version {1}")
 		public final Map<String, String> featureVersions = new LinkedHashMap<String, String>();
 
 	}
