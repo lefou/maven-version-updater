@@ -3,21 +3,25 @@ package de.tobiasroeser.maven.versionupdater;
 import java.util.Collections;
 import java.util.List;
 
+import de.tototec.utils.functional.Optional;
+
 public class Dependency {
 
 	private final Artifact dependencyArtifact;
 	private final LocalArtifact project;
+	private final Optional<String> profile;
 	private final boolean system;
 	private final String scope;
 	private final String classifier;
 	private final String systemPath;
 	private List<String> exclusions;
 
-	public Dependency(Artifact dependencyArtifact, LocalArtifact project,
-			String classifier, String scope, String systemPath,
-			List<String> exclusions) {
+	public Dependency(final Artifact dependencyArtifact, final LocalArtifact project, final Optional<String> profile,
+			final String classifier, final String scope, final String systemPath,
+			final List<String> exclusions) {
 		this.dependencyArtifact = dependencyArtifact;
 		this.project = project;
+		this.profile = profile;
 		this.classifier = classifier;
 		this.scope = scope;
 		this.system = scope.trim().equals("system");
@@ -36,7 +40,7 @@ public class Dependency {
 
 	private String changeProtectBecause;
 
-	public void addChangeProtectBecause(String changeProtectBecause) {
+	public void addChangeProtectBecause(final String changeProtectBecause) {
 		if (this.changeProtectBecause == null) {
 			this.changeProtectBecause = changeProtectBecause;
 		} else {
@@ -72,6 +76,10 @@ public class Dependency {
 		return exclusions;
 	}
 
+	public Optional<String> getProfile() {
+		return profile;
+	}
+
 	@Override
 	public String toString() {
 		String additionalDepInfo = "";
@@ -95,6 +103,9 @@ public class Dependency {
 				+ " (required by " + project;
 		if (verbose) {
 			string += " @ " + project.getLocation();
+			if(profile.isDefined()) {
+				string += " (" + profile.get() + ")";
+			}
 		}
 		string += ")";
 
@@ -103,7 +114,7 @@ public class Dependency {
 
 	private static boolean verbose = false;
 
-	public static synchronized void setVerbose(boolean verbose) {
+	public static synchronized void setVerbose(final boolean verbose) {
 		Dependency.verbose = verbose;
 	}
 
