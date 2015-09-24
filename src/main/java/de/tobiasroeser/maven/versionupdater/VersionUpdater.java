@@ -385,7 +385,7 @@ public class VersionUpdater {
 			return;
 		}
 
-		final List<Dependency> deps = readDependenciesFromTextFile(readDepsFromFile, candidate, dryrun);
+		final List<Dependency> deps = readDependenciesFromTextFile(readDepsFromFile, candidate);
 		if (deps == null) {
 			return;
 		}
@@ -394,7 +394,7 @@ public class VersionUpdater {
 
 	}
 
-	private List<Dependency> readDependenciesFromTextFile(final String readDepsFromFile, final LocalArtifact candidate, final boolean dryrun) {
+	private List<Dependency> readDependenciesFromTextFile(final String readDepsFromFile, final LocalArtifact candidate) {
 
 		final List<Dependency> deps = new LinkedList<Dependency>();
 

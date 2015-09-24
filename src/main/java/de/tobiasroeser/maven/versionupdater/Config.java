@@ -94,7 +94,7 @@ public class Config {
 	// setDepVersions.add(key);
 	// }
 
-	@CmdOption(names = "--search-multi-version-deps", description = "Search dependecies, which are present with more to one version.")
+	@CmdOption(names = "--search-multi-version-deps", description = "Search dependecies, which are present with more to one version. (NOT IMPLEMENTED)")
 	public boolean searchMultiVersionDeps;
 
 	@CmdOption(names = "--search-plugins", args = { "PLUGIN" }, maxCount = -1, description = "Search Maven-plugin {0} and the using project.")
